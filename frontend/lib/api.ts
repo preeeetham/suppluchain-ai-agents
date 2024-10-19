@@ -96,6 +96,7 @@ class ApiClient {
     const url = `${this.baseUrl}${endpoint}`;
     
     try {
+      console.log(`🔄 Making API request to: ${url}`);
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
@@ -103,17 +104,25 @@ class ApiClient {
         },
         ...options,
         // Add timeout and retry logic
-        signal: AbortSignal.timeout(5000), // 5 second timeout
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
+
+      console.log(`📡 API response: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log(`✅ API request successful for ${endpoint}:`, data);
+      return data;
     } catch (error) {
-      console.warn(`API request failed for ${endpoint}:`, error);
-      // Return fallback data instead of throwing
+      console.error(`❌ API request failed for ${endpoint}:`, error);
+      // For agent control operations, we should throw the error instead of using fallback
+      if (endpoint.includes('/agents/') && (endpoint.includes('/start') || endpoint.includes('/stop') || endpoint.includes('/restart'))) {
+        throw error;
+      }
+      // Return fallback data for other endpoints
       return this.getFallbackData<T>(endpoint);
     }
   }
@@ -378,11 +387,13 @@ export const apiClient = new ApiClient();
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private maxReconnectAttempts = 3; // Reduced from 5 to 3
+  private reconnectDelay = 2000; // Increased delay
   private listeners: Map<string, ((data: any) => void)[]> = new Map();
 
-  constructor(private url: string = 'ws://localhost:8000/ws') {}
+  constructor(private url: string = 'ws://localhost:8000/ws') {
+    // Don't auto-connect immediately, let components decide when to connect
+  }
 
   connect(): void {
     try {
@@ -396,6 +407,7 @@ export class WebSocketClient {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('🔌 WebSocket message received:', data);
           this.notifyListeners(data.type, data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -409,6 +421,7 @@ export class WebSocketClient {
 
       this.ws.onerror = (error) => {
         console.warn('WebSocket error (will retry):', error);
+        // Don't immediately attempt reconnect on error, let onclose handle it
       };
     } catch (error) {
       console.warn('Error connecting WebSocket (will retry):', error);
@@ -425,7 +438,8 @@ export class WebSocketClient {
         this.connect();
       }, this.reconnectDelay * this.reconnectAttempts);
     } else {
-      console.error('Max reconnection attempts reached');
+      console.warn('WebSocket: Max reconnection attempts reached. Will retry when manually triggered.');
+      // Don't show error, just warn and allow manual reconnection
     }
   }
 
@@ -434,6 +448,12 @@ export class WebSocketClient {
       this.ws.close();
       this.ws = null;
     }
+  }
+
+  manualReconnect(): void {
+    console.log('Manual WebSocket reconnection triggered');
+    this.reconnectAttempts = 0; // Reset attempts
+    this.connect();
   }
 
   subscribe(eventType: string, callback: (data: any) => void): () => void {
@@ -457,6 +477,7 @@ export class WebSocketClient {
 
   private notifyListeners(eventType: string, data: any): void {
     const listeners = this.listeners.get(eventType);
+    console.log(`🔔 Notifying ${listeners?.length || 0} listeners for event: ${eventType}`);
     if (listeners) {
       listeners.forEach(callback => callback(data));
     }

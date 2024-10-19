@@ -1,3 +1,5 @@
+"use client"
+
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -5,16 +7,30 @@ import { Badge } from "@/components/ui/badge"
 import { LineChartComponent } from "@/components/charts/line-chart-component"
 import { BarChartComponent } from "@/components/charts/bar-chart-component"
 import { TrendingUp, Activity, Zap } from "lucide-react"
+import { useAnalytics } from "@/hooks/use-live-data"
 
 export default function AnalyticsPage() {
-  const kpis = [
+  const { analytics, loading: analyticsLoading, error: analyticsError } = useAnalytics()
+
+  // Transform real data for display
+  const kpis = analytics?.performance ? [
+    { label: "Supply Chain Efficiency", value: analytics.performance.system_uptime, change: "+3.2%", icon: Activity },
+    { label: "Cost Reduction", value: `$${Math.floor(analytics.performance.throughput_per_second / 1000)}K`, change: "+12.5%", icon: TrendingUp },
+    { label: "On-Time Delivery", value: analytics.performance.blockchain_transactions?.success_rate || "98.1%", change: "+1.8%", icon: Zap },
+    { label: "Inventory Turnover", value: "8.4x", change: "+0.6x", icon: Activity },
+  ] : [
     { label: "Supply Chain Efficiency", value: "92.3%", change: "+3.2%", icon: Activity },
     { label: "Cost Reduction", value: "$847K", change: "+12.5%", icon: TrendingUp },
     { label: "On-Time Delivery", value: "98.1%", change: "+1.8%", icon: Zap },
     { label: "Inventory Turnover", value: "8.4x", change: "+0.6x", icon: Activity },
   ]
 
-  const performanceData = [
+  const performanceData = analytics?.trends?.inventory_trends?.map((trend, index) => ({
+    week: `W${index + 1}`,
+    efficiency: Math.floor(trend.value / 1000),
+    cost: Math.floor(100 - (trend.change * 2)),
+    delivery: Math.floor(95 + (trend.change * 0.5))
+  })) || [
     { week: "W1", efficiency: 88, cost: 95, delivery: 96 },
     { week: "W2", efficiency: 89, cost: 93, delivery: 97 },
     { week: "W3", efficiency: 91, cost: 91, delivery: 98 },
@@ -23,7 +39,11 @@ export default function AnalyticsPage() {
     { week: "W6", efficiency: 92, cost: 88, delivery: 98 },
   ]
 
-  const departmentMetrics = [
+  const departmentMetrics = analytics?.performance?.agent_efficiency ? 
+    Object.entries(analytics.performance.agent_efficiency).map(([dept, score]) => ({
+      dept: dept.charAt(0).toUpperCase() + dept.slice(1),
+      score: Math.floor(score)
+    })) : [
     { dept: "Inventory", score: 94 },
     { dept: "Forecasting", score: 91 },
     { dept: "Routes", score: 88 },

@@ -1,12 +1,34 @@
+"use client"
+
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Network, Plus, Search } from "lucide-react"
+import { useKnowledgeGraph } from "@/hooks/use-live-data"
+import { apiClient } from "@/lib/api"
+import { useState } from "react"
 
 export default function KnowledgeGraphPage() {
-  const entities = [
+  const { knowledgeGraph, loading: kgLoading, error: kgError } = useKnowledgeGraph()
+  const [query, setQuery] = useState("")
+  const [queryResults, setQueryResults] = useState<any[]>([])
+
+  // Transform real data for display
+  const entities = knowledgeGraph?.nodes?.nodes?.reduce((acc, node) => {
+    const existing = acc.find(e => e.type === node.type)
+    if (existing) {
+      existing.count++
+    } else {
+      acc.push({
+        type: node.type.charAt(0).toUpperCase() + node.type.slice(1),
+        count: 1,
+        color: `bg-${['blue', 'green', 'purple', 'orange', 'pink', 'cyan'][acc.length % 6]}-500/20 text-${['blue', 'green', 'purple', 'orange', 'pink', 'cyan'][acc.length % 6]}-400`
+      })
+    }
+    return acc
+  }, []) || [
     { type: "Warehouse", count: 12, color: "bg-blue-500/20 text-blue-400" },
     { type: "Supplier", count: 48, color: "bg-green-500/20 text-green-400" },
     { type: "Product", count: 2847, color: "bg-purple-500/20 text-purple-400" },
@@ -15,7 +37,12 @@ export default function KnowledgeGraphPage() {
     { type: "Customer", count: 1247, color: "bg-cyan-500/20 text-cyan-400" },
   ]
 
-  const relationships = [
+  const relationships = knowledgeGraph?.relationships?.relationships?.map(rel => ({
+    from: rel.source,
+    to: rel.target,
+    type: rel.type,
+    strength: rel.weight > 0.8 ? "strong" : rel.weight > 0.5 ? "medium" : "weak"
+  })) || [
     { from: "Warehouse A", to: "Supplier 1", type: "supplies", strength: "strong" },
     { from: "Product SKU-001", to: "Warehouse B", type: "stored_in", strength: "strong" },
     { from: "Route RT-001", to: "Warehouse A", type: "originates_from", strength: "medium" },
@@ -24,18 +51,30 @@ export default function KnowledgeGraphPage() {
     { from: "Customer 123", to: "Route RT-002", type: "assigned_to", strength: "medium" },
   ]
 
+  const handleQuery = async () => {
+    if (!query.trim()) return
+    
+    try {
+      const results = await apiClient.queryKnowledgeGraph(query)
+      setQueryResults(results.results || [])
+    } catch (error) {
+      console.warn('Error executing query:', error)
+      setQueryResults([])
+    }
+  }
+
   const insights = [
     {
       title: "Supplier Network Optimization",
-      desc: "Identified 3 new supplier relationships that could reduce lead times by 15%",
+      desc: `Identified ${relationships.filter(r => r.type === 'supplies').length} supplier relationships that could reduce lead times by 15%`,
     },
     {
       title: "Product Clustering",
-      desc: "Grouped 847 products into 12 categories for better inventory management",
+      desc: `Grouped ${entities.find(e => e.type === 'Product')?.count || 847} products into ${entities.length} categories for better inventory management`,
     },
     {
       title: "Route Efficiency Patterns",
-      desc: "Discovered 5 route patterns that correlate with 92%+ efficiency scores",
+      desc: `Discovered ${relationships.filter(r => r.type.includes('route')).length} route patterns that correlate with 92%+ efficiency scores`,
     },
   ]
 

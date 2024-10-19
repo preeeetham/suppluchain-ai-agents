@@ -148,7 +148,14 @@ export default function AgentManagement() {
                 </div>
               ) : (
                 agents.map((agent, index) => {
-                  const agentId = `agent-${String(index + 1).padStart(3, '0')}`
+                  // Map agent names to correct backend IDs
+                  const agentIdMap: { [key: string]: string } = {
+                    'Inventory Management': 'inventory',
+                    'Demand Forecasting': 'demand', 
+                    'Route Optimization': 'route',
+                    'Supplier Coordination': 'supplier'
+                  }
+                  const agentId = agentIdMap[agent.name] || `agent-${String(index + 1).padStart(3, '0')}`
                   const isControlLoading = controlState[agentId] === 'loading'
                   const isControlSuccess = controlState[agentId] === 'success'
                   const isControlError = controlState[agentId] === 'error'
