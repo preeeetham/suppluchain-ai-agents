@@ -38,9 +38,9 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -587,24 +587,55 @@ async def websocket_endpoint(websocket: WebSocket):
             # Send periodic updates
             await asyncio.sleep(5)  # Update every 5 seconds
             
-            # Update agent statuses with real data
+            # Update agent statuses with real data (only for active agents)
+            active_count = 0
+            stopped_count = 0
             for agent_id, agent_data in agent_status_cache.items():
                 if agent_data["status"] == "active":
-                    # Simulate task completion
-                    agent_data["tasks_completed"] += 1
+                    # Only update last_activity, don't simulate task completion
                     agent_data["last_activity"] = datetime.now()
+                    active_count += 1
+                elif agent_data["status"] == "stopped":
+                    # Keep stopped agents stopped - don't auto-restart them
+                    stopped_count += 1
+                elif agent_data["status"] == "restarting":
+                    # Handle restarting agents
+                    pass
             
-            # Broadcast updates
+            # Log WebSocket update summary (less verbose)
+            if active_count > 0 or stopped_count > 0:
+                # Only log every 30 seconds to reduce noise
+                if int(datetime.now().timestamp()) % 30 == 0:
+                    logger.info(f"🔄 WebSocket Update: {active_count} active, {stopped_count} stopped agents")
+            
+            # Broadcast updates (convert datetime objects to strings)
+            def serialize_datetime(obj):
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+            
+            # Convert agent status cache to serializable format
+            serializable_agents = {}
+            for agent_id, agent_data in agent_status_cache.items():
+                serializable_agents[agent_id] = {
+                    "name": agent_data["name"],
+                    "status": agent_data["status"],
+                    "efficiency": agent_data["efficiency"],
+                    "tasks_completed": agent_data["tasks_completed"],
+                    "last_activity": agent_data["last_activity"].isoformat() if isinstance(agent_data["last_activity"], datetime) else agent_data["last_activity"],
+                    "uptime": agent_data["uptime"]
+                }
+            
             await manager.broadcast(json.dumps({
                 "type": "data_update",
-                "agents": agent_status_cache,
+                "agents": serializable_agents,
                 "inventory": inventory_cache,
                 "demand": demand_cache,
                 "routes": route_cache,
                 "suppliers": supplier_cache,
                 "blockchain": blockchain_cache,
                 "timestamp": datetime.now().isoformat()
-            }))
+            }, default=serialize_datetime))
             
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -624,82 +655,99 @@ async def start_agent(agent_id: str):
     try:
         # In a real system, this would communicate with the actual agent
         # For now, we'll simulate agent control
-        if agent_id in agent_status:
-            agent_status[agent_id]["status"] = "active"
-            agent_status[agent_id]["last_activity"] = datetime.now().isoformat()
+        if agent_id in agent_status_cache:
+            old_status = agent_status_cache[agent_id]["status"]
+            agent_status_cache[agent_id]["status"] = "active"
+            agent_status_cache[agent_id]["last_activity"] = datetime.now().isoformat()
             
-            # Add activity log
-            recent_activities.insert(0, {
-                "time": "Just now",
-                "action": f"Started {agent_status[agent_id]['name']}",
-                "agent": agent_status[agent_id]['name'],
-                "type": "success"
-            })
+            # Log the agent start action
+            logger.info(f"🚀 AGENT START: {agent_status_cache[agent_id]['name']} ({agent_id})")
+            logger.info(f"   Status changed: {old_status} → active")
+            logger.info(f"   Last activity: {agent_status_cache[agent_id]['last_activity']}")
+            logger.info(f"   Efficiency: {agent_status_cache[agent_id]['efficiency']}%")
+            logger.info(f"   Tasks completed: {agent_status_cache[agent_id]['tasks_completed']}")
+            
+            # Activity log is handled by the get_recent_activities endpoint
             
             return {"status": "success", "message": f"Agent {agent_id} started successfully"}
         else:
+            logger.error(f"❌ AGENT START FAILED: Agent {agent_id} not found")
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
     except Exception as e:
-        logger.error(f"Error starting agent {agent_id}: {e}")
+        logger.error(f"❌ AGENT START ERROR: {agent_id} - {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start agent: {e}")
 
 @app.post("/api/agents/{agent_id}/stop")
 async def stop_agent(agent_id: str):
     """Stop a specific agent"""
     try:
-        if agent_id in agent_status:
-            agent_status[agent_id]["status"] = "stopped"
-            agent_status[agent_id]["last_activity"] = datetime.now().isoformat()
+        if agent_id in agent_status_cache:
+            old_status = agent_status_cache[agent_id]["status"]
+            agent_status_cache[agent_id]["status"] = "stopped"
+            agent_status_cache[agent_id]["last_activity"] = datetime.now().isoformat()
             
-            # Add activity log
-            recent_activities.insert(0, {
-                "time": "Just now",
-                "action": f"Stopped {agent_status[agent_id]['name']}",
-                "agent": agent_status[agent_id]['name'],
-                "type": "warning"
-            })
+            # Log the agent stop action
+            logger.info(f"🛑 AGENT STOP: {agent_status_cache[agent_id]['name']} ({agent_id})")
+            logger.info(f"   Status changed: {old_status} → stopped")
+            logger.info(f"   Last activity: {agent_status_cache[agent_id]['last_activity']}")
+            logger.info(f"   Efficiency: {agent_status_cache[agent_id]['efficiency']}%")
+            logger.info(f"   Tasks completed: {agent_status_cache[agent_id]['tasks_completed']}")
+            logger.info(f"   ⚠️  Agent will remain stopped until manually restarted")
+            
+            # Activity log is handled by the get_recent_activities endpoint
             
             return {"status": "success", "message": f"Agent {agent_id} stopped successfully"}
         else:
+            logger.error(f"❌ AGENT STOP FAILED: Agent {agent_id} not found")
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
     except Exception as e:
-        logger.error(f"Error stopping agent {agent_id}: {e}")
+        logger.error(f"❌ AGENT STOP ERROR: {agent_id} - {e}")
         raise HTTPException(status_code=500, detail=f"Failed to stop agent: {e}")
 
 @app.post("/api/agents/{agent_id}/restart")
 async def restart_agent(agent_id: str):
     """Restart a specific agent"""
     try:
-        if agent_id in agent_status:
-            # Simulate restart by stopping and starting
-            agent_status[agent_id]["status"] = "restarting"
-            agent_status[agent_id]["last_activity"] = datetime.now().isoformat()
+        if agent_id in agent_status_cache:
+            old_status = agent_status_cache[agent_id]["status"]
             
-            # Add activity log
-            recent_activities.insert(0, {
-                "time": "Just now",
-                "action": f"Restarted {agent_status[agent_id]['name']}",
-                "agent": agent_status[agent_id]['name'],
-                "type": "info"
-            })
+            # Log the restart initiation
+            logger.info(f"🔄 AGENT RESTART: {agent_status_cache[agent_id]['name']} ({agent_id})")
+            logger.info(f"   Status changed: {old_status} → restarting")
+            logger.info(f"   Last activity: {datetime.now().isoformat()}")
+            logger.info(f"   Efficiency: {agent_status_cache[agent_id]['efficiency']}%")
+            logger.info(f"   Tasks completed: {agent_status_cache[agent_id]['tasks_completed']}")
+            
+            # Simulate restart by stopping and starting
+            agent_status_cache[agent_id]["status"] = "restarting"
+            agent_status_cache[agent_id]["last_activity"] = datetime.now().isoformat()
+            
+            # Activity log is handled by the get_recent_activities endpoint
             
             # Simulate restart delay
+            logger.info(f"   ⏳ Restarting agent (1 second delay)...")
             await asyncio.sleep(1)
-            agent_status[agent_id]["status"] = "active"
+            agent_status_cache[agent_id]["status"] = "active"
+            
+            # Log restart completion
+            logger.info(f"   ✅ Restart completed: restarting → active")
+            logger.info(f"   Final status: {agent_status_cache[agent_id]['status']}")
+            logger.info(f"   Final activity: {agent_status_cache[agent_id]['last_activity']}")
             
             return {"status": "success", "message": f"Agent {agent_id} restarted successfully"}
         else:
+            logger.error(f"❌ AGENT RESTART FAILED: Agent {agent_id} not found")
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
     except Exception as e:
-        logger.error(f"Error restarting agent {agent_id}: {e}")
+        logger.error(f"❌ AGENT RESTART ERROR: {agent_id} - {e}")
         raise HTTPException(status_code=500, detail=f"Failed to restart agent: {e}")
 
 @app.get("/api/agents/{agent_id}/status")
 async def get_agent_status(agent_id: str):
     """Get detailed status of a specific agent"""
     try:
-        if agent_id in agent_status:
-            agent_info = agent_status[agent_id].copy()
+        if agent_id in agent_status_cache:
+            agent_info = agent_status_cache[agent_id].copy()
             agent_info["agent_id"] = agent_id
             return agent_info
         else:
