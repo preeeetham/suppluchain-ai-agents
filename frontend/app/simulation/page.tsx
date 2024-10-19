@@ -1,3 +1,5 @@
+"use client"
+
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -5,23 +7,57 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LineChartComponent } from "@/components/charts/line-chart-component"
 import { Play, Pause, RotateCcw, Plus } from "lucide-react"
+import { useSimulation } from "@/hooks/use-live-data"
+import { apiClient } from "@/lib/api"
+import { useState } from "react"
 
 export default function SimulationPage() {
+  const { simulation, loading: simLoading, error: simError } = useSimulation()
+  const [isStarting, setIsStarting] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
+
+  // Transform real data for display
   const simulationData = [
     { scenario: "Baseline", cost: 100000, efficiency: 85, time: "45 days" },
     { scenario: "Optimized Routes", cost: 92000, efficiency: 91, time: "38 days" },
     { scenario: "Increased Inventory", cost: 115000, efficiency: 88, time: "42 days" },
-    { scenario: "Multi-Agent Coordination", cost: 85000, efficiency: 94, time: "35 days" },
+    { scenario: "Multi-Agent Coordination", cost: simulation?.results?.optimization_savings ? 100000 - simulation.results.optimization_savings : 85000, efficiency: 94, time: "35 days" },
   ]
 
   const simulationResults = [
-    { month: "Jan", baseline: 100000, optimized: 92000, multiAgent: 85000 },
-    { month: "Feb", baseline: 102000, optimized: 90000, multiAgent: 83000 },
-    { month: "Mar", baseline: 105000, optimized: 91000, multiAgent: 84000 },
-    { month: "Apr", baseline: 103000, optimized: 89000, multiAgent: 82000 },
-    { month: "May", baseline: 107000, optimized: 93000, multiAgent: 86000 },
-    { month: "Jun", baseline: 110000, optimized: 95000, multiAgent: 88000 },
+    { month: "Jan", baseline: 100000, optimized: 92000, multiAgent: simulation?.results?.optimization_savings ? 100000 - simulation.results.optimization_savings : 85000 },
+    { month: "Feb", baseline: 102000, optimized: 90000, multiAgent: simulation?.results?.optimization_savings ? 102000 - simulation.results.optimization_savings : 83000 },
+    { month: "Mar", baseline: 105000, optimized: 91000, multiAgent: simulation?.results?.optimization_savings ? 105000 - simulation.results.optimization_savings : 84000 },
+    { month: "Apr", baseline: 103000, optimized: 89000, multiAgent: simulation?.results?.optimization_savings ? 103000 - simulation.results.optimization_savings : 82000 },
+    { month: "May", baseline: 107000, optimized: 93000, multiAgent: simulation?.results?.optimization_savings ? 107000 - simulation.results.optimization_savings : 86000 },
+    { month: "Jun", baseline: 110000, optimized: 95000, multiAgent: simulation?.results?.optimization_savings ? 110000 - simulation.results.optimization_savings : 88000 },
   ]
+
+  const handleStartSimulation = async () => {
+    setIsStarting(true)
+    try {
+      await apiClient.startSimulation({ name: "enterprise_scale_test" })
+      // Refresh simulation data
+      window.location.reload()
+    } catch (error) {
+      console.warn('Error starting simulation:', error)
+    } finally {
+      setIsStarting(false)
+    }
+  }
+
+  const handleStopSimulation = async () => {
+    setIsStopping(true)
+    try {
+      await apiClient.stopSimulation()
+      // Refresh simulation data
+      window.location.reload()
+    } catch (error) {
+      console.warn('Error stopping simulation:', error)
+    } finally {
+      setIsStopping(false)
+    }
+  }
 
   return (
     <div className="flex h-screen bg-background">

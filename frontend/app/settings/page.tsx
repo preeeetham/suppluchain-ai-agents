@@ -1,11 +1,80 @@
+"use client"
+
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Save } from "lucide-react"
+import { useSettings } from "@/hooks/use-live-data"
+import { apiClient } from "@/lib/api"
+import { useState } from "react"
 
 export default function SettingsPage() {
+  const { settings, loading: settingsLoading, error: settingsError } = useSettings()
+  const [isSaving, setIsSaving] = useState(false)
+  const [formData, setFormData] = useState({
+    organizationName: settings?.general?.system_name || "Supply Chain AI Agents",
+    environment: settings?.general?.environment || "production",
+    debugMode: settings?.general?.debug_mode || false,
+    autoStart: settings?.agents?.auto_start || true,
+    monitoringInterval: settings?.agents?.monitoring_interval || 30,
+    maxRetryAttempts: settings?.agents?.max_retry_attempts || 3,
+    network: settings?.blockchain?.network || "devnet",
+    rpcUrl: settings?.blockchain?.rpc_url || "http://localhost:8899",
+    emailAlerts: settings?.notifications?.email_alerts || true,
+    inventoryLow: settings?.notifications?.alert_thresholds?.inventory_low || 10,
+    demandAccuracy: settings?.notifications?.alert_thresholds?.demand_accuracy || 90,
+    routeEfficiency: settings?.notifications?.alert_thresholds?.route_efficiency || 85,
+  })
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      const updatedSettings = {
+        general: {
+          system_name: formData.organizationName,
+          environment: formData.environment,
+          debug_mode: formData.debugMode
+        },
+        agents: {
+          auto_start: formData.autoStart,
+          monitoring_interval: formData.monitoringInterval,
+          max_retry_attempts: formData.maxRetryAttempts
+        },
+        blockchain: {
+          network: formData.network,
+          rpc_url: formData.rpcUrl
+        },
+        notifications: {
+          email_alerts: formData.emailAlerts,
+          alert_thresholds: {
+            inventory_low: formData.inventoryLow,
+            demand_accuracy: formData.demandAccuracy,
+            route_efficiency: formData.routeEfficiency
+          }
+        }
+      }
+      
+      await apiClient.updateSystemSettings(updatedSettings)
+      alert('Settings saved successfully!')
+    } catch (error) {
+      console.warn('Error saving settings:', error)
+      alert('Error saving settings. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleBackup = async () => {
+    try {
+      const backup = await apiClient.backupSystemSettings()
+      alert(`Backup created: ${backup.backup_id}`)
+    } catch (error) {
+      console.warn('Error creating backup:', error)
+      alert('Error creating backup. Please try again.')
+    }
+  }
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />

@@ -79,13 +79,24 @@ export function useAgents() {
     fetchAgents()
   }, [])
 
-  const { data: liveData } = useLiveData<{ agents: AgentStatus[] }>({ channel: 'agents' })
-
+  // Set up WebSocket connection for real-time updates
   useEffect(() => {
-    if (liveData?.agents) {
-      setAgents(liveData.agents)
+    wsClient.connect()
+    
+    const unsubscribe = wsClient.subscribe('data_update', (data) => {
+      console.log('🔄 WebSocket data received:', data)
+      if (data.agents) {
+        // Convert the agents object to an array
+        const agentsArray = Object.values(data.agents) as AgentStatus[]
+        console.log('📊 Updating agents from WebSocket:', agentsArray)
+        setAgents(agentsArray)
+      }
+    })
+
+    return () => {
+      unsubscribe()
     }
-  }, [liveData])
+  }, [])
 
   return { agents, loading, error }
 }
@@ -115,13 +126,37 @@ export function useSystemMetrics() {
     fetchMetrics()
   }, [])
 
-  const { data: liveData } = useLiveData<SystemMetrics>({ channel: 'metrics' })
-
+  // Set up WebSocket connection for real-time updates
   useEffect(() => {
-    if (liveData) {
-      setMetrics(liveData)
+    wsClient.connect()
+    
+    const unsubscribe = wsClient.subscribe('data_update', (data) => {
+      console.log('🔄 WebSocket metrics data received:', data)
+      // System metrics would be calculated from the agents data
+      if (data.agents) {
+        const agentsArray = Object.values(data.agents) as AgentStatus[]
+        const activeAgents = agentsArray.filter(agent => agent.status === 'active').length
+        const totalTasks = agentsArray.reduce((sum, agent) => sum + agent.tasks_completed, 0)
+        const avgEfficiency = agentsArray.reduce((sum, agent) => sum + agent.efficiency, 0) / agentsArray.length
+        
+        const systemMetrics: SystemMetrics = {
+          active_agents: activeAgents,
+          total_inventory_value: 0, // This would come from inventory data
+          pending_orders: 0, // This would come from orders data
+          active_routes: 0, // This would come from routes data
+          blockchain_transactions: 0, // This would come from blockchain data
+          system_health: avgEfficiency > 80 ? 'excellent' : avgEfficiency > 60 ? 'good' : 'warning'
+        }
+        
+        console.log('📊 Updating system metrics from WebSocket:', systemMetrics)
+        setMetrics(systemMetrics)
+      }
+    })
+
+    return () => {
+      unsubscribe()
     }
-  }, [liveData])
+  }, [])
 
   return { metrics, loading, error }
 }
@@ -156,13 +191,22 @@ export function useInventory() {
     fetchInventory()
   }, [])
 
-  const { data: liveData } = useLiveData<typeof inventory>({ channel: 'inventory' })
-
+  // Set up WebSocket connection for real-time updates
   useEffect(() => {
-    if (liveData) {
-      setInventory(liveData)
+    wsClient.connect()
+    
+    const unsubscribe = wsClient.subscribe('data_update', (data) => {
+      console.log('🔄 WebSocket inventory data received:', data)
+      if (data.inventory) {
+        console.log('📊 Updating inventory from WebSocket:', data.inventory)
+        setInventory(data.inventory)
+      }
+    })
+
+    return () => {
+      unsubscribe()
     }
-  }, [liveData])
+  }, [])
 
   return { inventory, loading, error }
 }
@@ -196,13 +240,22 @@ export function useDemandForecasts() {
     fetchDemand()
   }, [])
 
-  const { data: liveData } = useLiveData<typeof demand>({ channel: 'demand' })
-
+  // Set up WebSocket connection for real-time updates
   useEffect(() => {
-    if (liveData) {
-      setDemand(liveData)
+    wsClient.connect()
+    
+    const unsubscribe = wsClient.subscribe('data_update', (data) => {
+      console.log('🔄 WebSocket demand data received:', data)
+      if (data.demand) {
+        console.log('📊 Updating demand from WebSocket:', data.demand)
+        setDemand(data.demand)
+      }
+    })
+
+    return () => {
+      unsubscribe()
     }
-  }, [liveData])
+  }, [])
 
   return { demand, loading, error }
 }
@@ -236,13 +289,22 @@ export function useRoutes() {
     fetchRoutes()
   }, [])
 
-  const { data: liveData } = useLiveData<typeof routes>({ channel: 'routes' })
-
+  // Set up WebSocket connection for real-time updates
   useEffect(() => {
-    if (liveData) {
-      setRoutes(liveData)
+    wsClient.connect()
+    
+    const unsubscribe = wsClient.subscribe('data_update', (data) => {
+      console.log('🔄 WebSocket routes data received:', data)
+      if (data.routes) {
+        console.log('📊 Updating routes from WebSocket:', data.routes)
+        setRoutes(data.routes)
+      }
+    })
+
+    return () => {
+      unsubscribe()
     }
-  }, [liveData])
+  }, [])
 
   return { routes, loading, error }
 }
@@ -276,13 +338,22 @@ export function useSuppliers() {
     fetchSuppliers()
   }, [])
 
-  const { data: liveData } = useLiveData<typeof suppliers>({ channel: 'suppliers' })
-
+  // Set up WebSocket connection for real-time updates
   useEffect(() => {
-    if (liveData) {
-      setSuppliers(liveData)
+    wsClient.connect()
+    
+    const unsubscribe = wsClient.subscribe('data_update', (data) => {
+      console.log('🔄 WebSocket suppliers data received:', data)
+      if (data.suppliers) {
+        console.log('📊 Updating suppliers from WebSocket:', data.suppliers)
+        setSuppliers(data.suppliers)
+      }
+    })
+
+    return () => {
+      unsubscribe()
     }
-  }, [liveData])
+  }, [])
 
   return { suppliers, loading, error }
 }
@@ -316,13 +387,22 @@ export function useBlockchain() {
     fetchBlockchain()
   }, [])
 
-  const { data: liveData } = useLiveData<typeof blockchain>({ channel: 'blockchain' })
-
+  // Set up WebSocket connection for real-time updates
   useEffect(() => {
-    if (liveData) {
-      setBlockchain(liveData)
+    wsClient.connect()
+    
+    const unsubscribe = wsClient.subscribe('data_update', (data) => {
+      console.log('🔄 WebSocket blockchain data received:', data)
+      if (data.blockchain) {
+        console.log('📊 Updating blockchain from WebSocket:', data.blockchain)
+        setBlockchain(data.blockchain)
+      }
+    })
+
+    return () => {
+      unsubscribe()
     }
-  }, [liveData])
+  }, [])
 
   return { blockchain, loading, error }
 }
