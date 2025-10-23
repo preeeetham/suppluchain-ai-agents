@@ -1,53 +1,97 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Settings, Play, Pause, RotateCcw } from "lucide-react"
+import { Settings, Play, Pause, RotateCcw, Loader2 } from "lucide-react"
+import { apiClient, AgentStatus } from "@/lib/api"
+import { useAgents } from "@/hooks/use-live-data"
+
+interface AgentControlState {
+  [key: string]: 'idle' | 'loading' | 'success' | 'error'
+}
 
 export default function AgentManagement() {
-  const agents = [
-    {
-      id: 1,
-      name: "Inventory Management Agent",
-      description: "Manages inventory levels across all warehouses",
-      status: "active",
-      uptime: "99.8%",
-      tasksProcessed: 1247,
-      lastUpdate: "2 minutes ago",
-      config: { updateInterval: "5m", warehouses: 12 },
-    },
-    {
-      id: 2,
-      name: "Demand Forecasting Agent",
-      description: "Predicts demand patterns using ML models",
-      status: "active",
-      uptime: "99.5%",
-      tasksProcessed: 856,
-      lastUpdate: "5 minutes ago",
-      config: { model: "LSTM", accuracy: "98.2%" },
-    },
-    {
-      id: 3,
-      name: "Route Optimization Agent",
-      description: "Optimizes delivery routes for efficiency",
-      status: "active",
-      uptime: "98.9%",
-      tasksProcessed: 623,
-      lastUpdate: "1 minute ago",
-      config: { algorithm: "Genetic", routes: 156 },
-    },
-    {
-      id: 4,
-      name: "Supplier Coordination Agent",
-      description: "Manages supplier communications and orders",
-      status: "idle",
-      uptime: "99.2%",
-      tasksProcessed: 445,
-      lastUpdate: "30 minutes ago",
-      config: { suppliers: 48, orders: 234 },
-    },
-  ]
+  const { agents, loading: agentsLoading, error: agentsError } = useAgents()
+  const [controlState, setControlState] = useState<AgentControlState>({})
+  const [communicationLog, setCommunicationLog] = useState<any[]>([])
+  const [logLoading, setLogLoading] = useState(false)
+
+  // Load communication log
+  useEffect(() => {
+    const loadCommunicationLog = async () => {
+      try {
+        setLogLoading(true)
+        const log = await apiClient.getAgentCommunicationLog()
+        setCommunicationLog(log)
+      } catch (error) {
+        console.warn('Error loading communication log:', error)
+      } finally {
+        setLogLoading(false)
+      }
+    }
+
+    loadCommunicationLog()
+  }, [])
+
+  const handleAgentControl = async (agentId: string, action: 'start' | 'stop' | 'restart') => {
+    setControlState(prev => ({ ...prev, [agentId]: 'loading' }))
+    
+    try {
+      let result
+      switch (action) {
+        case 'start':
+          result = await apiClient.startAgent(agentId)
+          break
+        case 'stop':
+          result = await apiClient.stopAgent(agentId)
+          break
+        case 'restart':
+          result = await apiClient.restartAgent(agentId)
+          break
+      }
+      
+      setControlState(prev => ({ ...prev, [agentId]: 'success' }))
+      
+      // Reset success state after 2 seconds
+      setTimeout(() => {
+        setControlState(prev => ({ ...prev, [agentId]: 'idle' }))
+      }, 2000)
+      
+    } catch (error) {
+      console.error(`Error ${action}ing agent:`, error)
+      setControlState(prev => ({ ...prev, [agentId]: 'error' }))
+      
+      // Reset error state after 3 seconds
+      setTimeout(() => {
+        setControlState(prev => ({ ...prev, [agentId]: 'idle' }))
+      }, 3000)
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-500/20 text-green-400'
+      case 'idle': return 'bg-yellow-500/20 text-yellow-400'
+      case 'stopped': return 'bg-red-500/20 text-red-400'
+      case 'restarting': return 'bg-blue-500/20 text-blue-400'
+      default: return 'bg-gray-500/20 text-gray-400'
+    }
+  }
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'active': return 'Active'
+      case 'idle': return 'Idle'
+      case 'stopped': return 'Stopped'
+      case 'restarting': return 'Restarting'
+      case 'connecting': return 'Connecting...'
+      default: return 'Unknown'
+    }
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -70,73 +114,158 @@ export default function AgentManagement() {
 
             {/* Agents Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {agents.map((agent) => (
-                <Card key={agent.id} className="bg-card border-border">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg">{agent.name}</CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">{agent.description}</p>
+              {agentsLoading ? (
+                // Loading state
+                Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={i} className="bg-card border-border animate-pulse">
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="h-6 bg-muted rounded mb-2"></div>
+                          <div className="h-4 bg-muted rounded w-3/4"></div>
+                        </div>
+                        <div className="h-6 w-16 bg-muted rounded"></div>
                       </div>
-                      <Badge
-                        className={
-                          agent.status === "active"
-                            ? "bg-green-500/20 text-green-400"
-                            : "bg-yellow-500/20 text-yellow-400"
-                        }
-                      >
-                        {agent.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Stats */}
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Uptime</p>
-                        <p className="text-lg font-bold">{agent.uptime}</p>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="h-4 bg-muted rounded"></div>
+                        <div className="h-4 bg-muted rounded"></div>
+                        <div className="h-4 bg-muted rounded"></div>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Tasks</p>
-                        <p className="text-lg font-bold">{agent.tasksProcessed}</p>
+                      <div className="h-20 bg-muted rounded"></div>
+                      <div className="flex gap-2">
+                        <div className="flex-1 h-8 bg-muted rounded"></div>
+                        <div className="flex-1 h-8 bg-muted rounded"></div>
+                        <div className="flex-1 h-8 bg-muted rounded"></div>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Last Update</p>
-                        <p className="text-sm font-semibold">{agent.lastUpdate}</p>
-                      </div>
-                    </div>
-
-                    {/* Configuration */}
-                    <div className="bg-muted/30 rounded-lg p-4">
-                      <p className="text-xs font-semibold text-muted-foreground mb-3">Configuration</p>
-                      <div className="space-y-2">
-                        {Object.entries(agent.config).map(([key, value]) => (
-                          <div key={key} className="flex justify-between text-sm">
-                            <span className="text-muted-foreground capitalize">{key}:</span>
-                            <span className="font-medium">{String(value)}</span>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : agentsError ? (
+                <div className="col-span-2 bg-destructive/10 border border-destructive/20 rounded-lg p-6">
+                  <p className="text-destructive">Error loading agents: {agentsError.message}</p>
+                </div>
+              ) : (
+                agents.map((agent, index) => {
+                  const agentId = `agent-${String(index + 1).padStart(3, '0')}`
+                  const isControlLoading = controlState[agentId] === 'loading'
+                  const isControlSuccess = controlState[agentId] === 'success'
+                  const isControlError = controlState[agentId] === 'error'
+                  
+                  return (
+                    <Card key={agentId} className="bg-card border-border">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{agent.name}</CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {agent.name === "Inventory Management" && "Manages inventory levels across all warehouses"}
+                              {agent.name === "Demand Forecasting" && "Predicts demand patterns using ML models"}
+                              {agent.name === "Route Optimization" && "Optimizes delivery routes for efficiency"}
+                              {agent.name === "Supplier Coordination" && "Manages supplier communications and orders"}
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          <Badge className={getStatusColor(agent.status)}>
+                            {getStatusText(agent.status)}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {/* Stats */}
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Efficiency</p>
+                            <p className="text-lg font-bold">{agent.efficiency}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Tasks</p>
+                            <p className="text-lg font-bold">{agent.tasks_completed}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Last Activity</p>
+                            <p className="text-sm font-semibold">
+                              {new Date(agent.last_activity).toLocaleTimeString()}
+                            </p>
+                          </div>
+                        </div>
 
-                    {/* Controls */}
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                        <Play className="w-4 h-4 mr-2" />
-                        Start
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                        <Pause className="w-4 h-4 mr-2" />
-                        Pause
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1 bg-transparent">
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Reset
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        {/* Configuration */}
+                        <div className="bg-muted/30 rounded-lg p-4">
+                          <p className="text-xs font-semibold text-muted-foreground mb-3">Configuration</p>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Status:</span>
+                              <span className="font-medium">{getStatusText(agent.status)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Efficiency:</span>
+                              <span className="font-medium">{agent.efficiency}%</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Tasks Completed:</span>
+                              <span className="font-medium">{agent.tasks_completed}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1 bg-transparent"
+                            onClick={() => handleAgentControl(agentId, 'start')}
+                            disabled={isControlLoading || agent.status === 'active'}
+                          >
+                            {isControlLoading && controlState[agentId] === 'loading' ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Play className="w-4 h-4 mr-2" />
+                            )}
+                            {isControlSuccess ? 'Started' : 'Start'}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1 bg-transparent"
+                            onClick={() => handleAgentControl(agentId, 'stop')}
+                            disabled={isControlLoading || agent.status === 'stopped'}
+                          >
+                            {isControlLoading && controlState[agentId] === 'loading' ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <Pause className="w-4 h-4 mr-2" />
+                            )}
+                            {isControlSuccess ? 'Stopped' : 'Stop'}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1 bg-transparent"
+                            onClick={() => handleAgentControl(agentId, 'restart')}
+                            disabled={isControlLoading}
+                          >
+                            {isControlLoading && controlState[agentId] === 'loading' ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <RotateCcw className="w-4 h-4 mr-2" />
+                            )}
+                            {isControlSuccess ? 'Restarted' : 'Restart'}
+                          </Button>
+                        </div>
+
+                        {/* Control Status */}
+                        {isControlError && (
+                          <div className="text-sm text-destructive">
+                            Error: Failed to control agent
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })
+              )}
             </div>
 
             {/* Agent Communication Log */}
@@ -145,40 +274,47 @@ export default function AgentManagement() {
                 <CardTitle>Agent Communication Log</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {[
-                    {
-                      from: "Inventory Management",
-                      to: "Demand Forecasting",
-                      msg: "Requesting demand forecast for Q4",
-                      time: "2 min ago",
-                    },
-                    {
-                      from: "Route Optimization",
-                      to: "Inventory Management",
-                      msg: "Confirming pickup locations",
-                      time: "5 min ago",
-                    },
-                    {
-                      from: "Supplier Coordination",
-                      to: "Inventory Management",
-                      msg: "New shipment received",
-                      time: "12 min ago",
-                    },
-                  ].map((log, i) => (
-                    <div key={i} className="flex items-center gap-4 pb-3 border-b border-border last:border-0">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">
-                          <span className="text-primary">{log.from}</span>
-                          <span className="text-muted-foreground mx-2">→</span>
-                          <span className="text-accent">{log.to}</span>
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">{log.msg}</p>
+                {logLoading ? (
+                  <div className="space-y-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-4 pb-3 border-b border-border last:border-0 animate-pulse">
+                        <div className="flex-1">
+                          <div className="h-4 bg-muted rounded mb-2"></div>
+                          <div className="h-3 bg-muted rounded w-3/4"></div>
+                        </div>
+                        <div className="h-3 bg-muted rounded w-16"></div>
                       </div>
-                      <span className="text-xs text-muted-foreground">{log.time}</span>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {communicationLog.length > 0 ? (
+                      communicationLog.slice(0, 10).map((log, i) => (
+                        <div key={log.id || i} className="flex items-center gap-4 pb-3 border-b border-border last:border-0">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">
+                              <span className="text-primary">{log.from_agent}</span>
+                              <span className="text-muted-foreground mx-2">→</span>
+                              <span className="text-accent">{log.to_agent}</span>
+                              <Badge variant="outline" className="ml-2 text-xs">
+                                {log.message_type}
+                              </Badge>
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">{log.message}</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(log.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <p>No communication logs available</p>
+                        <p className="text-sm">Agent communication will appear here when agents interact</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

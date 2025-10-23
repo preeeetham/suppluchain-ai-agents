@@ -285,6 +285,34 @@ class ApiClient {
     return this.request('/alerts');
   }
 
+  // Agent Control Methods
+  async startAgent(agentId: string): Promise<{ status: string; message: string }> {
+    return this.request(`/agents/${agentId}/start`, { method: 'POST' });
+  }
+
+  async stopAgent(agentId: string): Promise<{ status: string; message: string }> {
+    return this.request(`/agents/${agentId}/stop`, { method: 'POST' });
+  }
+
+  async restartAgent(agentId: string): Promise<{ status: string; message: string }> {
+    return this.request(`/agents/${agentId}/restart`, { method: 'POST' });
+  }
+
+  async getAgentStatus(agentId: string): Promise<AgentStatus & { agent_id: string }> {
+    return this.request(`/agents/${agentId}/status`);
+  }
+
+  async getAgentCommunicationLog(): Promise<Array<{
+    id: string;
+    from_agent: string;
+    to_agent: string;
+    message: string;
+    timestamp: string;
+    message_type: string;
+  }>> {
+    return this.request('/agents/communication-log');
+  }
+
   // Simulation Control
   async startSimulation(): Promise<{ status: string; message: string }> {
     return this.request('/simulation/start', {
