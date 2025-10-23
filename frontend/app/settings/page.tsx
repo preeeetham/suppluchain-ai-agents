@@ -184,7 +184,7 @@ export default function SettingsPage() {
                   <div className="flex gap-2">
                     <input
                       type="password"
-                      value="sk_live_••••••••••••••••"
+                      value="••••••••••••••••••••••••"
                       readOnly
                       className="flex-1 px-4 py-2 bg-muted border border-border rounded-lg text-sm"
                     />
