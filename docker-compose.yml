@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  solana-validator:
+    image: solanalabs/solana:v1.18.4
+    container_name: supply-chain-solana-validator
+    ports:
+      - "8899:8899"  # RPC port
+      - "8900:8900"  # Gossip port
+      - "9900:9900"  # Metrics port
+    volumes:
+      - solana-data:/root/.local/share/solana
+      - ./solana-config:/root/solana-config
+    command: >
+      solana-test-validator
+      --reset
+      --quiet
+      --rpc-port 8899
+      --faucet-sol 1000000
+      --limit-ledger-size 50000000
+      --log
+    environment:
+      - RUST_LOG=info
+    networks:
+      - supply-chain-network
+
+  supply-chain-app:
+    build: .
+    container_name: supply-chain-ai-agents
+    depends_on:
+      - solana-validator
+    ports:
+      - "8001:8001"  # Inventory Agent
+      - "8002:8002"  # Demand Agent
+      - "8003:8003"  # Route Agent
+      - "8004:8004"  # Supplier Agent
+    volumes:
+      - ./data:/app/data
+      - ./blockchain_data:/app/blockchain_data
+      - ./solana_wallets.json:/app/solana_wallets.json
+    environment:
+      - SOLANA_RPC_URL=http://solana-validator:8899
+      - SOLANA_WS_URL=ws://solana-validator:8900
+    networks:
+      - supply-chain-network
+    command: >
+      sh -c "
+        echo 'Starting Supply Chain AI Agents...' &&
+        python agents/inventory_agent.py &
+        python agents/demand_forecasting_agent.py &
+        python agents/route_optimization_agent.py &
+        python agents/supplier_coordination_agent.py &
+        wait
+      "
+
+  supply-chain-simulator:
+    build: .
+    container_name: supply-chain-simulator
+    depends_on:
+      - solana-validator
+      - supply-chain-app
+    volumes:
+      - ./data:/app/data
+      - ./blockchain_data:/app/blockchain_data
+      - ./solana_wallets.json:/app/solana_wallets.json
+    environment:
+      - SOLANA_RPC_URL=http://solana-validator:8899
+    networks:
+      - supply-chain-network
+    command: python run_simulation.py
+
+volumes:
+  solana-data:
+
+networks:
+  supply-chain-network:
+    driver: bridge
