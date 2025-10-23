@@ -167,6 +167,8 @@ export function useInventory() {
     products: InventoryItem[]
     total_value: number
     low_stock_items: InventoryItem[]
+    warehouse_capacity: { [key: string]: number }
+    warehouse_utilization: { [key: string]: number }
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)

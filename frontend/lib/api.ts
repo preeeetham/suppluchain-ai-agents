@@ -19,6 +19,7 @@ export interface InventoryItem {
   product_id: string;
   product_name: string;
   quantity: number;
+  current_quantity?: number; // For low stock items
   reorder_point: number;
   unit_price: number;
   last_updated: string;
