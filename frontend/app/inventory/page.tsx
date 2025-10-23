@@ -171,8 +171,8 @@ export default function InventoryPage() {
                           </tr>
                         ))
                       ) : lowStockItems.length > 0 ? (
-                        lowStockItems.map((item) => (
-                          <tr key={item.product_id} className="border-b border-border hover:bg-muted/30">
+                        lowStockItems.map((item, index) => (
+                          <tr key={`${item.product_id}-${item.warehouse_id}-${index}`} className="border-b border-border hover:bg-muted/30">
                             <td className="py-3 px-4 font-mono text-xs">{item.product_id}</td>
                             <td className="py-3 px-4">{item.product_name || item.product_id}</td>
                             <td className="py-3 px-4">
