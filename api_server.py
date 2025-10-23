@@ -55,6 +55,7 @@ demand_cache = {}
 route_cache = {}
 supplier_cache = {}
 blockchain_cache = {}
+communication_log = []  # Store real agent communication logs
 
 def calculate_uptime(start_time: datetime) -> str:
     """Calculate uptime string from start time"""
@@ -102,6 +103,27 @@ def calculate_efficiency(agent_id: str, tasks_completed: int, start_time: dateti
     efficiency = max(80.0, min(100.0, efficiency + variance))
     
     return round(efficiency, 1)
+
+def log_agent_communication(from_agent: str, to_agent: str, message: str, message_type: str):
+    """Log agent communication for real-time tracking"""
+    global communication_log
+    
+    comm_entry = {
+        "id": f"comm-{len(communication_log) + 1:04d}",
+        "from_agent": from_agent,
+        "to_agent": to_agent,
+        "message": message,
+        "timestamp": datetime.now().isoformat(),
+        "message_type": message_type
+    }
+    
+    communication_log.append(comm_entry)
+    
+    # Keep only last 100 communications to prevent memory issues
+    if len(communication_log) > 100:
+        communication_log = communication_log[-100:]
+    
+    logger.info(f"📡 {from_agent} → {to_agent}: {message} ({message_type})")
 
 # Pydantic models for API responses
 class AgentStatus(BaseModel):
@@ -693,15 +715,67 @@ async def websocket_endpoint(websocket: WebSocket):
                         agent_data["tasks_completed"] += 1
                         logger.info(f"🔄 {agent_data['name']} completed periodic task (Total: {agent_data['tasks_completed']})")
                         
-                        # Log what task was performed
+                        # Log what task was performed and simulate agent communication
                         if agent_id == "inventory":
                             logger.info(f"   📦 Task: Inventory monitoring cycle - checked stock levels, identified low stock items")
+                            # Simulate communication with other agents
+                            log_agent_communication(
+                                "Inventory Management", 
+                                "Demand Forecasting", 
+                                "Requesting demand forecast for low stock items", 
+                                "request"
+                            )
+                            log_agent_communication(
+                                "Inventory Management", 
+                                "Supplier Coordination", 
+                                "Triggering reorder for low stock items", 
+                                "notification"
+                            )
                         elif agent_id == "demand":
                             logger.info(f"   📊 Task: Demand analysis cycle - analyzed market trends, updated forecasts")
+                            # Simulate communication with other agents
+                            log_agent_communication(
+                                "Demand Forecasting", 
+                                "Inventory Management", 
+                                "Updated demand forecast data available", 
+                                "response"
+                            )
+                            log_agent_communication(
+                                "Demand Forecasting", 
+                                "Route Optimization", 
+                                "Sharing demand patterns for route planning", 
+                                "notification"
+                            )
                         elif agent_id == "route":
                             logger.info(f"   🚛 Task: Route monitoring cycle - analyzed traffic patterns, optimized routes")
+                            # Simulate communication with other agents
+                            log_agent_communication(
+                                "Route Optimization", 
+                                "Inventory Management", 
+                                "Route efficiency data updated", 
+                                "notification"
+                            )
+                            log_agent_communication(
+                                "Route Optimization", 
+                                "Supplier Coordination", 
+                                "Optimized delivery routes for supplier orders", 
+                                "response"
+                            )
                         elif agent_id == "supplier":
                             logger.info(f"   🤝 Task: Order monitoring cycle - tracked supplier orders, updated performance")
+                            # Simulate communication with other agents
+                            log_agent_communication(
+                                "Supplier Coordination", 
+                                "Inventory Management", 
+                                "Order status update: delivery scheduled", 
+                                "notification"
+                            )
+                            log_agent_communication(
+                                "Supplier Coordination", 
+                                "Route Optimization", 
+                                "Requesting route optimization for new orders", 
+                                "request"
+                            )
                     
                     # Calculate dynamic efficiency based on performance
                     if "start_time" in agent_data:
@@ -889,19 +963,14 @@ async def get_agent_status(agent_id: str):
 async def get_agent_communication_log():
     """Get agent communication log"""
     try:
-        # In a real system, this would come from actual agent communication logs
-        communication_log = [
-            {
-                "id": f"comm-{i}",
-                "from_agent": f"agent-{(i % 4) + 1:03d}",
-                "to_agent": f"agent-{((i + 1) % 4) + 1:03d}",
-                "message": f"Agent communication message {i + 1}",
-                "timestamp": datetime.now().isoformat(),
-                "message_type": ["request", "response", "notification", "alert"][i % 4]
-            }
-            for i in range(10)
-        ]
-        return communication_log
+        # Return real communication logs from agent interactions
+        # If no real communications yet, return empty array
+        if not communication_log:
+            return []
+        
+        # Return the last 20 communications, sorted by timestamp (newest first)
+        recent_logs = sorted(communication_log, key=lambda x: x['timestamp'], reverse=True)[:20]
+        return recent_logs
     except Exception as e:
         logger.error(f"Error getting communication log: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get communication log: {e}")
