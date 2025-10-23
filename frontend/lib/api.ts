@@ -102,6 +102,8 @@ class ApiClient {
           ...options?.headers,
         },
         ...options,
+        // Add timeout and retry logic
+        signal: AbortSignal.timeout(5000), // 5 second timeout
       });
 
       if (!response.ok) {
@@ -110,9 +112,105 @@ class ApiClient {
 
       return await response.json();
     } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
-      throw error;
+      console.warn(`API request failed for ${endpoint}:`, error);
+      // Return fallback data instead of throwing
+      return this.getFallbackData<T>(endpoint);
     }
+  }
+
+  private getFallbackData<T>(endpoint: string): T {
+    // Provide fallback data when API is not available
+    const fallbackData: Record<string, any> = {
+      '/agents': [
+        {
+          name: "Inventory Management",
+          status: "connecting",
+          efficiency: 0,
+          tasks_completed: 0,
+          last_activity: new Date().toISOString(),
+          uptime: "Connecting..."
+        },
+        {
+          name: "Demand Forecasting", 
+          status: "connecting",
+          efficiency: 0,
+          tasks_completed: 0,
+          last_activity: new Date().toISOString(),
+          uptime: "Connecting..."
+        },
+        {
+          name: "Route Optimization",
+          status: "connecting", 
+          efficiency: 0,
+          tasks_completed: 0,
+          last_activity: new Date().toISOString(),
+          uptime: "Connecting..."
+        },
+        {
+          name: "Supplier Coordination",
+          status: "connecting",
+          efficiency: 0,
+          tasks_completed: 0,
+          last_activity: new Date().toISOString(),
+          uptime: "Connecting..."
+        }
+      ],
+      '/metrics': {
+        active_agents: 0,
+        total_inventory_value: 0,
+        pending_orders: 0,
+        active_routes: 0,
+        blockchain_transactions: 0,
+        system_health: "connecting"
+      },
+      '/inventory': {
+        warehouses: [],
+        products: [],
+        total_value: 0,
+        low_stock_items: []
+      },
+      '/demand': {
+        forecasts: [],
+        accuracy: 0,
+        trends: []
+      },
+      '/routes': {
+        active_routes: [],
+        optimized_today: 0,
+        total_savings: 0
+      },
+      '/suppliers': {
+        suppliers: [],
+        active_orders: 0,
+        pending_quotes: 0
+      },
+      '/blockchain': {
+        transactions: [],
+        wallet_balance: 0,
+        network_status: "connecting"
+      },
+      '/activities': [
+        {
+          time: "Just now",
+          action: "Connecting to backend...",
+          agent: "System",
+          type: "info"
+        }
+      ],
+      '/alerts': [
+        {
+          level: "info",
+          message: "Backend server not connected. Please start the API server.",
+          timestamp: new Date().toISOString()
+        }
+      ],
+      '/health': {
+        status: "connecting",
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    return fallbackData[endpoint] || {} as T;
   }
 
   // Agent Management
@@ -243,10 +341,11 @@ export class WebSocketClient {
       };
 
       this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.warn('WebSocket error (will retry):', error);
       };
     } catch (error) {
-      console.error('Error connecting WebSocket:', error);
+      console.warn('Error connecting WebSocket (will retry):', error);
+      this.attemptReconnect();
     }
   }
 

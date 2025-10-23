@@ -66,7 +66,11 @@ export function useAgents() {
         const data = await apiClient.getAgents()
         setAgents(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
@@ -98,7 +102,11 @@ export function useSystemMetrics() {
         const data = await apiClient.getSystemMetrics()
         setMetrics(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
@@ -135,7 +143,11 @@ export function useInventory() {
         const data = await apiClient.getInventory()
         setInventory(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
@@ -171,7 +183,11 @@ export function useDemandForecasts() {
         const data = await apiClient.getDemandForecasts()
         setDemand(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
@@ -207,7 +223,11 @@ export function useRoutes() {
         const data = await apiClient.getRoutes()
         setRoutes(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
@@ -243,7 +263,11 @@ export function useSuppliers() {
         const data = await apiClient.getSuppliers()
         setSuppliers(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
@@ -279,7 +303,11 @@ export function useBlockchain() {
         const data = await apiClient.getBlockchainData()
         setBlockchain(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
@@ -311,7 +339,11 @@ export function useActivities() {
         const data = await apiClient.getRecentActivities()
         setActivities(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
@@ -335,7 +367,11 @@ export function useAlerts() {
         const data = await apiClient.getAlerts()
         setAlerts(data)
       } catch (err) {
-        setError(err as Error)
+        console.warn('Error fetching data (using fallback data):', err)
+        // Don't set error state for connection issues, just use fallback data
+        if (!(err as Error).message.includes('Failed to fetch')) {
+          setError(err as Error)
+        }
       } finally {
         setLoading(false)
       }
