@@ -63,3 +63,36 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Credentials and sensitive data
+solana_wallets.json
+blockchain_data/
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Solana specific
+solana-config/
+*.json
+!package.json
+!tsconfig.json
+!requirements.json
+
+# Agent credentials
+agent_*.json
+wallet_*.json
+keypair_*.json
+
+# Blockchain data
+nfts/
+payments/
+tokens/
+transactions/
+
+# Environment specific
+.env.production
+.env.staging
+.env.development
