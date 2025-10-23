@@ -616,6 +616,119 @@ async def startup_event():
     await initialize_data()
     logger.info("API server started successfully")
 
+# --- Agent Control Endpoints ---
+
+@app.post("/api/agents/{agent_id}/start")
+async def start_agent(agent_id: str):
+    """Start a specific agent"""
+    try:
+        # In a real system, this would communicate with the actual agent
+        # For now, we'll simulate agent control
+        if agent_id in agent_status:
+            agent_status[agent_id]["status"] = "active"
+            agent_status[agent_id]["last_activity"] = datetime.now().isoformat()
+            
+            # Add activity log
+            recent_activities.insert(0, {
+                "time": "Just now",
+                "action": f"Started {agent_status[agent_id]['name']}",
+                "agent": agent_status[agent_id]['name'],
+                "type": "success"
+            })
+            
+            return {"status": "success", "message": f"Agent {agent_id} started successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+    except Exception as e:
+        logger.error(f"Error starting agent {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start agent: {e}")
+
+@app.post("/api/agents/{agent_id}/stop")
+async def stop_agent(agent_id: str):
+    """Stop a specific agent"""
+    try:
+        if agent_id in agent_status:
+            agent_status[agent_id]["status"] = "stopped"
+            agent_status[agent_id]["last_activity"] = datetime.now().isoformat()
+            
+            # Add activity log
+            recent_activities.insert(0, {
+                "time": "Just now",
+                "action": f"Stopped {agent_status[agent_id]['name']}",
+                "agent": agent_status[agent_id]['name'],
+                "type": "warning"
+            })
+            
+            return {"status": "success", "message": f"Agent {agent_id} stopped successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+    except Exception as e:
+        logger.error(f"Error stopping agent {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to stop agent: {e}")
+
+@app.post("/api/agents/{agent_id}/restart")
+async def restart_agent(agent_id: str):
+    """Restart a specific agent"""
+    try:
+        if agent_id in agent_status:
+            # Simulate restart by stopping and starting
+            agent_status[agent_id]["status"] = "restarting"
+            agent_status[agent_id]["last_activity"] = datetime.now().isoformat()
+            
+            # Add activity log
+            recent_activities.insert(0, {
+                "time": "Just now",
+                "action": f"Restarted {agent_status[agent_id]['name']}",
+                "agent": agent_status[agent_id]['name'],
+                "type": "info"
+            })
+            
+            # Simulate restart delay
+            await asyncio.sleep(1)
+            agent_status[agent_id]["status"] = "active"
+            
+            return {"status": "success", "message": f"Agent {agent_id} restarted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+    except Exception as e:
+        logger.error(f"Error restarting agent {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to restart agent: {e}")
+
+@app.get("/api/agents/{agent_id}/status")
+async def get_agent_status(agent_id: str):
+    """Get detailed status of a specific agent"""
+    try:
+        if agent_id in agent_status:
+            agent_info = agent_status[agent_id].copy()
+            agent_info["agent_id"] = agent_id
+            return agent_info
+        else:
+            raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+    except Exception as e:
+        logger.error(f"Error getting agent status {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get agent status: {e}")
+
+@app.get("/api/agents/communication-log")
+async def get_agent_communication_log():
+    """Get agent communication log"""
+    try:
+        # In a real system, this would come from actual agent communication logs
+        communication_log = [
+            {
+                "id": f"comm-{i}",
+                "from_agent": f"agent-{(i % 4) + 1:03d}",
+                "to_agent": f"agent-{((i + 1) % 4) + 1:03d}",
+                "message": f"Agent communication message {i + 1}",
+                "timestamp": datetime.now().isoformat(),
+                "message_type": ["request", "response", "notification", "alert"][i % 4]
+            }
+            for i in range(10)
+        ]
+        return communication_log
+    except Exception as e:
+        logger.error(f"Error getting communication log: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get communication log: {e}")
+
 if __name__ == "__main__":
     uvicorn.run(
         "api_server:app",
