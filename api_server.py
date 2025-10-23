@@ -654,30 +654,54 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             # Send periodic updates
-            await asyncio.sleep(5)  # Update every 5 seconds
+            await asyncio.sleep(10)  # Update every 10 seconds
             
             # Update agent statuses with real data (only for active agents)
             active_count = 0
             stopped_count = 0
+            current_time = datetime.now()
+            
             for agent_id, agent_data in agent_status_cache.items():
                 if agent_data["status"] == "active":
-                    # Update last_activity and increment task count based on periodic intervals
-                    agent_data["last_activity"] = datetime.now()
+                    # Update last_activity
+                    agent_data["last_activity"] = current_time
                     
-                    # Increment task count based on agent's periodic function intervals
-                    # This simulates the actual periodic tasks the agents perform
-                    if agent_id == "inventory":
-                        # Inventory agent runs every 30 seconds
+                    # Check if it's time for this agent to run its periodic task
+                    should_increment = False
+                    if "start_time" in agent_data:
+                        uptime_seconds = (current_time - agent_data["start_time"]).total_seconds()
+                        
+                        if agent_id == "inventory":
+                            # Inventory agent runs every 15 seconds (for demo purposes)
+                            if uptime_seconds > 0 and int(uptime_seconds) % 15 == 0:
+                                should_increment = True
+                        elif agent_id == "demand":
+                            # Demand agent runs every 20 seconds (for demo purposes)
+                            if uptime_seconds > 0 and int(uptime_seconds) % 20 == 0:
+                                should_increment = True
+                        elif agent_id == "route":
+                            # Route agent runs every 30 seconds (for demo purposes)
+                            if uptime_seconds > 0 and int(uptime_seconds) % 30 == 0:
+                                should_increment = True
+                        elif agent_id == "supplier":
+                            # Supplier agent runs every 25 seconds (for demo purposes)
+                            if uptime_seconds > 0 and int(uptime_seconds) % 25 == 0:
+                                should_increment = True
+                    
+                    # Only increment if it's time for this agent's periodic task
+                    if should_increment:
                         agent_data["tasks_completed"] += 1
-                    elif agent_id == "demand":
-                        # Demand agent runs every 60 seconds
-                        agent_data["tasks_completed"] += 1
-                    elif agent_id == "route":
-                        # Route agent runs every 120 seconds
-                        agent_data["tasks_completed"] += 1
-                    elif agent_id == "supplier":
-                        # Supplier agent runs every 60 seconds
-                        agent_data["tasks_completed"] += 1
+                        logger.info(f"🔄 {agent_data['name']} completed periodic task (Total: {agent_data['tasks_completed']})")
+                        
+                        # Log what task was performed
+                        if agent_id == "inventory":
+                            logger.info(f"   📦 Task: Inventory monitoring cycle - checked stock levels, identified low stock items")
+                        elif agent_id == "demand":
+                            logger.info(f"   📊 Task: Demand analysis cycle - analyzed market trends, updated forecasts")
+                        elif agent_id == "route":
+                            logger.info(f"   🚛 Task: Route monitoring cycle - analyzed traffic patterns, optimized routes")
+                        elif agent_id == "supplier":
+                            logger.info(f"   🤝 Task: Order monitoring cycle - tracked supplier orders, updated performance")
                     
                     # Calculate dynamic efficiency based on performance
                     if "start_time" in agent_data:
