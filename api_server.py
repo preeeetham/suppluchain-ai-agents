@@ -178,10 +178,10 @@ async def initialize_data():
             },
             "supplier": {
                 "name": "Supplier Coordination",
-                "status": "idle",
+                "status": "active",
                 "efficiency": 78.9,
                 "tasks_completed": 445,
-                "last_activity": datetime.now() - timedelta(minutes=15),
+                "last_activity": datetime.now(),
                 "uptime": "2d 14h 25m"
             }
         }
