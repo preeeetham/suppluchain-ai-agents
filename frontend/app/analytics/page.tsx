@@ -25,11 +25,11 @@ export default function AnalyticsPage() {
     { label: "Inventory Turnover", value: "8.4x", change: "+0.6x", icon: Activity },
   ]
 
-  const performanceData = analytics?.trends?.inventory_trends?.map((trend, index) => ({
+  const performanceData = analytics?.trends?.inventory_trends?.map((trend: any, index: number) => ({
     week: `W${index + 1}`,
-    efficiency: Math.floor(trend.value / 1000),
-    cost: Math.floor(100 - (trend.change * 2)),
-    delivery: Math.floor(95 + (trend.change * 0.5))
+    efficiency: Math.floor((trend.value || 0) / 1000),
+    cost: Math.floor(100 - ((trend.change || 0) * 2)),
+    delivery: Math.floor(95 + ((trend.change || 0) * 0.5))
   })) || [
     { week: "W1", efficiency: 88, cost: 95, delivery: 96 },
     { week: "W2", efficiency: 89, cost: 93, delivery: 97 },
@@ -40,9 +40,9 @@ export default function AnalyticsPage() {
   ]
 
   const departmentMetrics = analytics?.performance?.agent_efficiency ? 
-    Object.entries(analytics.performance.agent_efficiency).map(([dept, score]) => ({
+    Object.entries(analytics.performance.agent_efficiency).map(([dept, score]: [string, any]) => ({
       dept: dept.charAt(0).toUpperCase() + dept.slice(1),
-      score: Math.floor(score)
+      score: Math.floor(score || 0)
     })) : [
     { dept: "Inventory", score: 94 },
     { dept: "Forecasting", score: 91 },

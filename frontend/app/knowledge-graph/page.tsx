@@ -16,8 +16,8 @@ export default function KnowledgeGraphPage() {
   const [queryResults, setQueryResults] = useState<any[]>([])
 
   // Transform real data for display
-  const entities = knowledgeGraph?.nodes?.nodes?.reduce((acc, node) => {
-    const existing = acc.find(e => e.type === node.type)
+  const entities = knowledgeGraph?.nodes?.nodes?.reduce((acc: any[], node: any) => {
+    const existing = acc.find((e: any) => e.type === node.type)
     if (existing) {
       existing.count++
     } else {
@@ -37,7 +37,7 @@ export default function KnowledgeGraphPage() {
     { type: "Customer", count: 1247, color: "bg-cyan-500/20 text-cyan-400" },
   ]
 
-  const relationships = knowledgeGraph?.relationships?.relationships?.map(rel => ({
+  const relationships = knowledgeGraph?.relationships?.relationships?.map((rel: any) => ({
     from: rel.source,
     to: rel.target,
     type: rel.type,
@@ -66,15 +66,15 @@ export default function KnowledgeGraphPage() {
   const insights = [
     {
       title: "Supplier Network Optimization",
-      desc: `Identified ${relationships.filter(r => r.type === 'supplies').length} supplier relationships that could reduce lead times by 15%`,
+      desc: `Identified ${relationships.filter((r: any) => r.type === 'supplies').length} supplier relationships that could reduce lead times by 15%`,
     },
     {
       title: "Product Clustering",
-      desc: `Grouped ${entities.find(e => e.type === 'Product')?.count || 847} products into ${entities.length} categories for better inventory management`,
+      desc: `Grouped ${entities.find((e: any) => e.type === 'Product')?.count || 847} products into ${entities.length} categories for better inventory management`,
     },
     {
       title: "Route Efficiency Patterns",
-      desc: `Discovered ${relationships.filter(r => r.type.includes('route')).length} route patterns that correlate with 92%+ efficiency scores`,
+      desc: `Discovered ${relationships.filter((r: any) => r.type.includes('route')).length} route patterns that correlate with 92%+ efficiency scores`,
     },
   ]
 
@@ -138,7 +138,7 @@ export default function KnowledgeGraphPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {entities.map((entity) => (
+                  {entities.map((entity: any) => (
                     <div key={entity.type} className="border border-border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <p className="font-semibold">{entity.type}</p>
@@ -163,7 +163,7 @@ export default function KnowledgeGraphPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {relationships.map((rel, i) => (
+                  {relationships.map((rel: any, i: number) => (
                     <div key={i} className="border border-border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 flex-1">
