@@ -1,0 +1,26 @@
+{
+  "suppliers": {
+    "supplier-001": {"name": "Global Supply Co", "contact": "John Smith", "email": "john@globalsupply.com", "phone": "+1-555-0101", "address": "100 Industrial Blvd, Chicago, IL 60601", "reliability_score": 0.95, "quality_rating": 4.8, "lead_time_avg": 7, "cost_multiplier": 1.0},
+    "supplier-002": {"name": "Fast Logistics Inc", "contact": "Sarah Johnson", "email": "sarah@fastlogistics.com", "phone": "+1-555-0102", "address": "200 Speedway Dr, Dallas, TX 75201", "reliability_score": 0.90, "quality_rating": 4.5, "lead_time_avg": 5, "cost_multiplier": 1.1},
+    "supplier-003": {"name": "Premium Materials Ltd", "contact": "Michael Chen", "email": "michael@premiummaterials.com", "phone": "+1-555-0103", "address": "300 Quality St, Seattle, WA 98101", "reliability_score": 0.94, "quality_rating": 4.7, "lead_time_avg": 9, "cost_multiplier": 0.95},
+    "supplier-004": {"name": "Industrial Solutions Corp", "contact": "David Wilson", "email": "david@industrialsolutions.com", "phone": "+1-555-0104", "address": "400 Manufacturing Ave, Detroit, MI 48201", "reliability_score": 0.92, "quality_rating": 4.6, "lead_time_avg": 8, "cost_multiplier": 1.05},
+    "supplier-005": {"name": "Tech Components LLC", "contact": "Lisa Brown", "email": "lisa@techcomponents.com", "phone": "+1-555-0105", "address": "500 Tech Park, Austin, TX 78701", "reliability_score": 0.88, "quality_rating": 4.4, "lead_time_avg": 6, "cost_multiplier": 1.15},
+    "supplier-006": {"name": "Quality Parts Inc", "contact": "Robert Davis", "email": "robert@qualityparts.com", "phone": "+1-555-0106", "address": "600 Quality Blvd, Phoenix, AZ 85001", "reliability_score": 0.96, "quality_rating": 4.9, "lead_time_avg": 10, "cost_multiplier": 0.90},
+    "supplier-007": {"name": "Express Supply Co", "contact": "Jennifer Lee", "email": "jennifer@expresssupply.com", "phone": "+1-555-0107", "address": "700 Express Way, Miami, FL 33101", "reliability_score": 0.87, "quality_rating": 4.3, "lead_time_avg": 4, "cost_multiplier": 1.20},
+    "supplier-008": {"name": "Reliable Materials", "contact": "William Taylor", "email": "william@reliablematerials.com", "phone": "+1-555-0108", "address": "800 Reliable St, Denver, CO 80201", "reliability_score": 0.93, "quality_rating": 4.7, "lead_time_avg": 9, "cost_multiplier": 1.02},
+    "supplier-009": {"name": "Advanced Components", "contact": "Maria Garcia", "email": "maria@advancedcomponents.com", "phone": "+1-555-0109", "address": "900 Advanced Dr, San Francisco, CA 94101", "reliability_score": 0.91, "quality_rating": 4.6, "lead_time_avg": 7, "cost_multiplier": 1.08},
+    "supplier-010": {"name": "Elite Manufacturing", "contact": "James Anderson", "email": "james@elitemanufacturing.com", "phone": "+1-555-0110", "address": "1000 Elite Ave, Boston, MA 02101", "reliability_score": 0.89, "quality_rating": 4.5, "lead_time_avg": 8, "cost_multiplier": 1.12}
+  },
+  "performance_metrics": {
+    "supplier-001": {"total_orders": 150, "successful_orders": 143, "avg_lead_time": 7.2, "avg_quality_rating": 4.8, "performance_score": 0.95},
+    "supplier-002": {"total_orders": 120, "successful_orders": 108, "avg_lead_time": 5.1, "avg_quality_rating": 4.5, "performance_score": 0.90},
+    "supplier-003": {"total_orders": 95, "successful_orders": 89, "avg_lead_time": 8.8, "avg_quality_rating": 4.7, "performance_score": 0.94},
+    "supplier-004": {"total_orders": 180, "successful_orders": 166, "avg_lead_time": 8.2, "avg_quality_rating": 4.6, "performance_score": 0.92},
+    "supplier-005": {"total_orders": 110, "successful_orders": 97, "avg_lead_time": 6.1, "avg_quality_rating": 4.4, "performance_score": 0.88},
+    "supplier-006": {"total_orders": 200, "successful_orders": 192, "avg_lead_time": 10.1, "avg_quality_rating": 4.9, "performance_score": 0.96},
+    "supplier-007": {"total_orders": 85, "successful_orders": 74, "avg_lead_time": 4.2, "avg_quality_rating": 4.3, "performance_score": 0.87},
+    "supplier-008": {"total_orders": 160, "successful_orders": 149, "avg_lead_time": 9.1, "avg_quality_rating": 4.7, "performance_score": 0.93},
+    "supplier-009": {"total_orders": 140, "successful_orders": 127, "avg_lead_time": 7.3, "avg_quality_rating": 4.6, "performance_score": 0.91},
+    "supplier-010": {"total_orders": 130, "successful_orders": 116, "avg_lead_time": 8.1, "avg_quality_rating": 4.5, "performance_score": 0.89}
+  }
+}
