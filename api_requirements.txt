@@ -1,0 +1,31 @@
+# FastAPI and Web Server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+
+# CORS and Middleware
+python-multipart>=0.0.6
+
+# Data Processing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# HTTP Requests
+requests>=2.28.0
+httpx>=0.25.0
+
+# Environment and Configuration
+python-dotenv>=0.19.0
+
+# JSON and Serialization
+pydantic>=2.5.0
+
+# Async Support
+asyncio-mqtt>=0.11.0
+
+# Logging and Monitoring
+structlog>=23.0.0
+
+# Development and Testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
