@@ -46,23 +46,58 @@ This project implements a decentralized supply chain management platform using F
 - **Deployment**: Agentverse registry
 - **Database**: JSON/SQLite for agent state persistence
 
+## Project Structure
+
+```
+suppluchain-ai-agents/
+├── agents/                          # AI Agent implementations
+│   ├── inventory_agent.py          # Inventory management agent
+│   ├── demand_forecasting_agent.py # Demand prediction agent
+│   ├── route_optimization_agent.py # Route optimization agent
+│   ├── supplier_coordination_agent.py # Supplier management agent
+│   └── shared_protocols.py         # Communication protocols
+├── data/                           # Sample data for testing
+│   ├── sample_inventory.json       # Inventory data
+│   ├── sample_orders.json          # Order history
+│   └── sample_suppliers.json       # Supplier information
+├── utils/                          # Utility modules
+│   ├── metta_integration.py        # MeTTa knowledge graph integration
+│   └── mock_metta_integration.py   # Mock MeTTa for testing
+├── tests/                          # Test suite
+│   └── test_integration.py         # Integration tests
+├── run_simulation.py               # Main simulation runner
+├── deploy_agents.py                # Agentverse deployment script
+├── monitor_agents.py               # Agent monitoring script
+├── test_expanded_data.py           # Extended data testing
+├── requirements.txt                # Python dependencies
+├── README.md                       # Project documentation
+├── LICENSE                         # MIT License
+└── demo_video_script.md            # Demo presentation script
+```
+
 ## Installation
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd supply-chain-agents
+git clone https://github.com/preeeetham/suppluchain-ai-agents.git
+cd suppluchain-ai-agents
 ```
 
-2. Install dependencies:
+2. Create a virtual environment (recommended):
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Set up MeTTa knowledge graphs:
+4. Set up MeTTa knowledge graphs (included in requirements):
 ```bash
-# Install MeTTa
-pip install hyperon
+# MeTTa is already included in requirements.txt
+# No additional setup required
 ```
 
 ## Running the Agents
@@ -87,6 +122,23 @@ python agents/supplier_coordination_agent.py
 
 ```bash
 python run_simulation.py
+```
+
+### Deploy Agents to Agentverse
+
+```bash
+# Deploy all agents to Agentverse with Chat Protocol enabled
+python deploy_agents.py
+
+# Monitor agent status and communication
+python monitor_agents.py
+```
+
+### Test Expanded Data Scenarios
+
+```bash
+# Run comprehensive data testing scenarios
+python test_expanded_data.py
 ```
 
 ## MeTTa Knowledge Graph Schema
@@ -168,12 +220,26 @@ python tests/test_integration.py --scenario route_optimization
 
 ## Dependencies
 
-- `uagents` - Fetch.ai uAgents framework
-- `hyperon` - SingularityNET MeTTa Knowledge Graphs
-- `pandas` - Data manipulation
-- `numpy` - Numerical computations
-- `requests` - HTTP requests for external APIs
-- `sqlite3` - Local database (built-in)
+### Core Framework
+- `uagents` - Fetch.ai uAgents framework for autonomous agents
+- `uagents-core` - Core uAgents functionality and protocols
+- `hyperon` - SingularityNET MeTTa Knowledge Graphs integration
+
+### Data Processing
+- `pandas` - Data manipulation and analysis
+- `numpy` - Numerical computations and array operations
+
+### Communication & APIs
+- `requests` - HTTP requests for external API integration
+- `asyncio-mqtt` - Asynchronous MQTT communication
+
+### Configuration & Testing
+- `python-dotenv` - Environment variable management
+- `pytest` - Testing framework for integration tests
+
+### Built-in Modules
+- `sqlite3` - Local database for agent state persistence
+- `asyncio` - Asynchronous programming support
 
 ## Demo Video Script
 
