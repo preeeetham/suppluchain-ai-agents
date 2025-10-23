@@ -1,5 +1,22 @@
+# Core AI Agent Framework
+uagents>=0.4.0
+uagents-core>=0.4.0
+
+# Knowledge Graph Integration
+hyperon>=0.1.0
+
+# Data Processing
 pandas>=1.5.0
 numpy>=1.21.0
+
+# HTTP and API
 requests>=2.28.0
+
+# Environment and Configuration
 python-dotenv>=0.19.0
+
+# Testing
 pytest>=7.0.0
+
+# Additional Dependencies
+asyncio-mqtt>=0.11.0
