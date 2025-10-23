@@ -382,3 +382,132 @@ export function useAlerts() {
 
   return { alerts, loading, error }
 }
+
+// --- Analytics Hooks ---
+
+export function useAnalytics() {
+  const [analytics, setAnalytics] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchAnalytics = async () => {
+    try {
+      setLoading(true)
+      const [performance, trends] = await Promise.all([
+        apiClient.getAnalyticsPerformance(),
+        apiClient.getAnalyticsTrends()
+      ])
+      setAnalytics({ performance, trends })
+    } catch (err) {
+      console.warn('Error fetching analytics (using fallback data):', err)
+      // Don't set error state for connection issues, just use fallback data
+      if (!(err as Error).message.includes('Failed to fetch')) {
+        setError(err as Error)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [])
+
+  return { analytics, loading, error }
+}
+
+// --- Knowledge Graph Hooks ---
+
+export function useKnowledgeGraph() {
+  const [knowledgeGraph, setKnowledgeGraph] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchKnowledgeGraph = async () => {
+    try {
+      setLoading(true)
+      const [nodes, relationships] = await Promise.all([
+        apiClient.getKnowledgeGraphNodes(),
+        apiClient.getKnowledgeGraphRelationships()
+      ])
+      setKnowledgeGraph({ nodes, relationships })
+    } catch (err) {
+      console.warn('Error fetching knowledge graph (using fallback data):', err)
+      // Don't set error state for connection issues, just use fallback data
+      if (!(err as Error).message.includes('Failed to fetch')) {
+        setError(err as Error)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchKnowledgeGraph()
+  }, [])
+
+  return { knowledgeGraph, loading, error }
+}
+
+// --- Simulation Hooks ---
+
+export function useSimulation() {
+  const [simulation, setSimulation] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchSimulation = async () => {
+    try {
+      setLoading(true)
+      const [status, results] = await Promise.all([
+        apiClient.getSimulationStatus(),
+        apiClient.getSimulationResults()
+      ])
+      setSimulation({ status, results })
+    } catch (err) {
+      console.warn('Error fetching simulation (using fallback data):', err)
+      // Don't set error state for connection issues, just use fallback data
+      if (!(err as Error).message.includes('Failed to fetch')) {
+        setError(err as Error)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchSimulation()
+  }, [])
+
+  return { simulation, loading, error }
+}
+
+// --- Settings Hooks ---
+
+export function useSettings() {
+  const [settings, setSettings] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true)
+      const settingsData = await apiClient.getSystemSettings()
+      setSettings(settingsData)
+    } catch (err) {
+      console.warn('Error fetching settings (using fallback data):', err)
+      // Don't set error state for connection issues, just use fallback data
+      if (!(err as Error).message.includes('Failed to fetch')) {
+        setError(err as Error)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  return { settings, loading, error }
+}
