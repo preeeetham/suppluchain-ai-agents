@@ -26,16 +26,8 @@ export default function InventoryPage() {
     }
   }) || []
 
-  // Generate realistic trend data based on current inventory value
-  const currentValue = inventory?.total_value || 50000
-  const inventoryTrend = [
-    { month: "Jan", inventory: Math.floor(currentValue * 0.8), orders: Math.floor(currentValue * 0.24) },
-    { month: "Feb", inventory: Math.floor(currentValue * 0.85), orders: Math.floor(currentValue * 0.28) },
-    { month: "Mar", inventory: Math.floor(currentValue * 0.9), orders: Math.floor(currentValue * 0.32) },
-    { month: "Apr", inventory: Math.floor(currentValue * 0.88), orders: Math.floor(currentValue * 0.30) },
-    { month: "May", inventory: Math.floor(currentValue * 0.95), orders: Math.floor(currentValue * 0.36) },
-    { month: "Jun", inventory: currentValue, orders: Math.floor(currentValue * 0.40) },
-  ]
+  // Use real trend data from backend
+  const inventoryTrend = inventory?.inventory_trend || []
 
   const lowStockItems = inventory?.low_stock_items || []
 
@@ -152,9 +144,9 @@ export default function InventoryPage() {
                       <tr className="border-b border-border">
                         <th className="text-left py-3 px-4 font-semibold">SKU</th>
                         <th className="text-left py-3 px-4 font-semibold">Product</th>
-                        <th className="text-left py-3 px-4 font-semibold">Current</th>
-                        <th className="text-left py-3 px-4 font-semibold">Reorder Level</th>
-                        <th className="text-left py-3 px-4 font-semibold">Warehouse</th>
+                        <th className="text-left py-3 px-4 font-semibold">Current Stock</th>
+                        <th className="text-left py-3 px-4 font-semibold">Reorder Point</th>
+                        <th className="text-left py-3 px-4 font-semibold">Warehouse & Status</th>
                         <th className="text-left py-3 px-4 font-semibold">Action</th>
                       </tr>
                     </thead>
@@ -176,10 +168,32 @@ export default function InventoryPage() {
                             <td className="py-3 px-4 font-mono text-xs">{item.product_id}</td>
                             <td className="py-3 px-4">{item.product_name || item.product_id}</td>
                             <td className="py-3 px-4">
-                              <Badge className="bg-red-500/20 text-red-400">{item.current_quantity || item.quantity}</Badge>
+                              <Badge className={`${
+                                item.urgency === 'high' 
+                                  ? 'bg-red-500/20 text-red-400' 
+                                  : 'bg-yellow-500/20 text-yellow-400'
+                              }`}>
+                                {item.current_quantity || item.quantity}
+                              </Badge>
                             </td>
-                            <td className="py-3 px-4">{item.reorder_point}</td>
-                            <td className="py-3 px-4 text-muted-foreground">{item.warehouse_id}</td>
+                            <td className="py-3 px-4">
+                              <div className="text-sm">
+                                <div>{item.reorder_point}</div>
+                                {item.shortage && (
+                                  <div className="text-xs text-muted-foreground">
+                                    Shortage: {item.shortage}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-muted-foreground">
+                              <div className="text-sm">{item.warehouse_id}</div>
+                              {item.days_until_stockout && (
+                                <div className="text-xs text-orange-500">
+                                  {item.days_until_stockout} days left
+                                </div>
+                              )}
+                            </td>
                             <td className="py-3 px-4">
                               <Button size="sm" variant="outline" className="bg-transparent">
                                 Reorder
