@@ -13,20 +13,28 @@ export default function InventoryPage() {
   const { inventory, loading: inventoryLoading, error: inventoryError } = useInventory()
 
   // Transform real data for display
-  const warehouseData = inventory?.warehouses?.map((warehouse, index) => ({
-    name: warehouse,
-    capacity: 10000 + (index * 2000), // Simulate capacity
-    current: Math.floor(Math.random() * 8000) + 2000, // Simulate current stock
-    utilization: Math.floor(Math.random() * 30) + 70, // 70-100% utilization
-  })) || []
+  const warehouseData = inventory?.warehouses?.map((warehouse) => {
+    const capacity = inventory?.warehouse_capacity?.[warehouse] || 10000
+    const utilization = inventory?.warehouse_utilization?.[warehouse] || 0
+    const current = Math.floor((capacity * utilization) / 100)
+    
+    return {
+      name: warehouse,
+      capacity: capacity,
+      current: current,
+      utilization: utilization,
+    }
+  }) || []
 
+  // Generate realistic trend data based on current inventory value
+  const currentValue = inventory?.total_value || 50000
   const inventoryTrend = [
-    { month: "Jan", inventory: inventory?.total_value ? Math.floor(inventory.total_value * 0.8) : 45000, orders: 12000 },
-    { month: "Feb", inventory: inventory?.total_value ? Math.floor(inventory.total_value * 0.85) : 48000, orders: 14000 },
-    { month: "Mar", inventory: inventory?.total_value ? Math.floor(inventory.total_value * 0.9) : 52000, orders: 16000 },
-    { month: "Apr", inventory: inventory?.total_value ? Math.floor(inventory.total_value * 0.88) : 50000, orders: 15000 },
-    { month: "May", inventory: inventory?.total_value ? Math.floor(inventory.total_value * 0.95) : 55000, orders: 18000 },
-    { month: "Jun", inventory: inventory?.total_value || 58000, orders: 20000 },
+    { month: "Jan", inventory: Math.floor(currentValue * 0.8), orders: Math.floor(currentValue * 0.24) },
+    { month: "Feb", inventory: Math.floor(currentValue * 0.85), orders: Math.floor(currentValue * 0.28) },
+    { month: "Mar", inventory: Math.floor(currentValue * 0.9), orders: Math.floor(currentValue * 0.32) },
+    { month: "Apr", inventory: Math.floor(currentValue * 0.88), orders: Math.floor(currentValue * 0.30) },
+    { month: "May", inventory: Math.floor(currentValue * 0.95), orders: Math.floor(currentValue * 0.36) },
+    { month: "Jun", inventory: currentValue, orders: Math.floor(currentValue * 0.40) },
   ]
 
   const lowStockItems = inventory?.low_stock_items || []
@@ -166,9 +174,9 @@ export default function InventoryPage() {
                         lowStockItems.map((item) => (
                           <tr key={item.product_id} className="border-b border-border hover:bg-muted/30">
                             <td className="py-3 px-4 font-mono text-xs">{item.product_id}</td>
-                            <td className="py-3 px-4">{item.product_name}</td>
+                            <td className="py-3 px-4">{item.product_name || item.product_id}</td>
                             <td className="py-3 px-4">
-                              <Badge className="bg-red-500/20 text-red-400">{item.quantity}</Badge>
+                              <Badge className="bg-red-500/20 text-red-400">{item.current_quantity || item.quantity}</Badge>
                             </td>
                             <td className="py-3 px-4">{item.reorder_point}</td>
                             <td className="py-3 px-4 text-muted-foreground">{item.warehouse_id}</td>

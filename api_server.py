@@ -272,11 +272,28 @@ async def initialize_data():
                 if isinstance(quantity, (int, float)) and quantity < 100:  # Low stock threshold
                     low_stock_items.append(product)
         
+        # Calculate warehouse capacity and utilization
+        warehouse_capacity = {}
+        warehouse_utilization = {}
+        
+        for warehouse in warehouses:
+            # Calculate total capacity (simulate based on warehouse size)
+            capacity = 10000 + (hash(warehouse) % 5000)  # 10k-15k capacity
+            warehouse_capacity[warehouse] = capacity
+            
+            # Calculate current utilization from products in this warehouse
+            warehouse_products = [p for p in inventory_products if p.get('warehouse_id') == warehouse]
+            current_stock = sum(p.get('quantity', 0) for p in warehouse_products)
+            utilization = min(100, (current_stock / capacity) * 100) if capacity > 0 else 0
+            warehouse_utilization[warehouse] = round(utilization, 1)
+        
         inventory_cache = {
             "warehouses": list(warehouses),
             "products": inventory_products,
             "total_value": total_value,
-            "low_stock_items": low_stock_items
+            "low_stock_items": low_stock_items,
+            "warehouse_capacity": warehouse_capacity,
+            "warehouse_utilization": warehouse_utilization
         }
         
         # Initialize demand forecast data
