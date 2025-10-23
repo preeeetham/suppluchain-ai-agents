@@ -313,17 +313,56 @@ class ApiClient {
     return this.request('/agents/communication-log');
   }
 
-  // Simulation Control
-  async startSimulation(): Promise<{ status: string; message: string }> {
-    return this.request('/simulation/start', {
-      method: 'POST',
-    });
+  // --- Analytics Methods ---
+  async getAnalyticsPerformance(): Promise<any> {
+    return this.request('/analytics/performance');
   }
 
-  async stopSimulation(): Promise<{ status: string; message: string }> {
-    return this.request('/simulation/stop', {
-      method: 'POST',
-    });
+  async getAnalyticsTrends(): Promise<any> {
+    return this.request('/analytics/trends');
+  }
+
+  // --- Knowledge Graph Methods ---
+  async getKnowledgeGraphNodes(): Promise<any> {
+    return this.request('/knowledge-graph/nodes');
+  }
+
+  async getKnowledgeGraphRelationships(): Promise<any> {
+    return this.request('/knowledge-graph/relationships');
+  }
+
+  async queryKnowledgeGraph(query: string): Promise<any> {
+    return this.request('/knowledge-graph/query', { method: 'POST', body: JSON.stringify({ query }) });
+  }
+
+  // --- Simulation Methods ---
+  async getSimulationStatus(): Promise<any> {
+    return this.request('/simulation/status');
+  }
+
+  async getSimulationResults(): Promise<any> {
+    return this.request('/simulation/results');
+  }
+
+  async startSimulation(scenario: { name: string }): Promise<any> {
+    return this.request('/simulation/start', { method: 'POST', body: JSON.stringify(scenario) });
+  }
+
+  async stopSimulation(): Promise<any> {
+    return this.request('/simulation/stop', { method: 'POST' });
+  }
+
+  // --- Settings Methods ---
+  async getSystemSettings(): Promise<any> {
+    return this.request('/settings');
+  }
+
+  async updateSystemSettings(settings: any): Promise<any> {
+    return this.request('/settings', { method: 'PUT', body: JSON.stringify(settings) });
+  }
+
+  async backupSystemSettings(): Promise<any> {
+    return this.request('/settings/backup');
   }
 
   // Health Check
