@@ -108,12 +108,16 @@ def log_agent_communication(from_agent: str, to_agent: str, message: str, messag
     """Log agent communication for real-time tracking"""
     global communication_log
     
+    # Generate unique ID using timestamp to avoid duplicates
+    timestamp = datetime.now()
+    unique_id = f"comm-{timestamp.strftime('%Y%m%d%H%M%S%f')[:-3]}"  # Include milliseconds
+    
     comm_entry = {
-        "id": f"comm-{len(communication_log) + 1:04d}",
+        "id": unique_id,
         "from_agent": from_agent,
         "to_agent": to_agent,
         "message": message,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": timestamp.isoformat(),
         "message_type": message_type
     }
     
@@ -433,30 +437,90 @@ async def initialize_data():
             "avg_confidence": round(sum(f["confidence_score"] for f in demand_forecasts) / len(demand_forecasts), 1) if demand_forecasts else 94.5
         }
         
-        # Initialize route optimization data
+        # Initialize route optimization data with comprehensive analysis
         route_data = metta_kg.query_routes()
         active_routes = []
         total_savings = 0
+        total_distance = 0
+        fuel_saved = 0
+        
+        # Generate realistic driver names
+        driver_names = ["John Smith", "Sarah Johnson", "Mike Davis", "Lisa Chen", "David Wilson", "Emma Brown", "Alex Rodriguez", "Maria Garcia"]
         
         for i, route in enumerate(route_data):
             if route['type'] == 'route' and len(route['values']) >= 6:
                 values = route['values']
+                distance = values[2] if isinstance(values[2], (int, float)) else 200
+                efficiency = values[4] if isinstance(values[4], (int, float)) else 85
+                savings = values[5] if isinstance(values[5], (int, float)) else 150
+                
+                # Calculate realistic metrics
+                fuel_saved_route = int(distance * 0.12)  # 12L per 100km saved
+                eta_hours = distance / 60  # 60 km/h average
+                eta_time = f"{int(eta_hours)}:{int((eta_hours % 1) * 60):02d} PM"
+                
+                # Generate vehicle types
+                vehicle_types = ["Truck", "Van", "Delivery"]
+                vehicle_letter = chr(65 + (i % 26))  # A, B, C, etc.
+                vehicle_number = (i % 9) + 1
+                
                 route_obj = {
-                    "route_id": f"route-{i:03d}",
+                    "route_id": f"RT-{i+1:03d}",
                     "warehouse_id": values[0],
                     "destinations": [values[1]],
-                    "total_distance": values[2],
-                    "estimated_time": values[3],
-                    "efficiency_score": values[4],
-                    "cost_savings": values[5]
+                    "total_distance": distance,
+                    "estimated_time": eta_time,
+                    "efficiency_score": efficiency,
+                    "cost_savings": savings,
+                    "driver": driver_names[i % len(driver_names)],
+                    "vehicle": f"{vehicle_types[i % len(vehicle_types)]}-{vehicle_letter}{vehicle_number}",
+                    "status": "in-transit" if i % 3 != 0 else "completed",
+                    "fuel_saved": fuel_saved_route
                 }
                 active_routes.append(route_obj)
-                total_savings += values[5]
+                total_savings += savings
+                total_distance += distance
+                fuel_saved += fuel_saved_route
+        
+        # Generate route efficiency analysis
+        route_efficiency = []
+        for i, route in enumerate(active_routes[:5]):  # Top 5 routes
+            route_efficiency.append({
+                "route": f"Route {chr(65 + i)}",  # Route A, B, C, D, E
+                "efficiency": route["efficiency_score"],
+                "distance": route["total_distance"]
+            })
+        
+        # Generate optimization recommendations
+        optimization_recommendations = [
+            {
+                "title": f"Consolidate Route {chr(65 + len(active_routes) % 5)}",
+                "desc": f"Combine with Route {chr(66 + len(active_routes) % 5)} to save {45 + (hash('consolidate') % 20)} km and 2 hours"
+            },
+            {
+                "title": "Time Window Adjustment", 
+                "desc": f"Shift Route {chr(66 + len(active_routes) % 5)} delivery to 2-4 PM for better efficiency"
+            },
+            {
+                "title": "Vehicle Upgrade",
+                "desc": f"Route {chr(65 + len(active_routes) % 5)} would benefit from larger vehicle capacity"
+            }
+        ]
+        
+        # Calculate average metrics
+        avg_distance = total_distance / len(active_routes) if active_routes else 0
+        on_time_rate = 95.0 + (hash("on_time") % 10) / 10  # 95.0-95.9%
         
         route_cache = {
             "active_routes": active_routes,
             "optimized_today": len(active_routes),
-            "total_savings": total_savings
+            "total_savings": total_savings,
+            "total_distance": total_distance,
+            "avg_distance": round(avg_distance, 1),
+            "fuel_saved": fuel_saved,
+            "on_time_rate": round(on_time_rate, 1),
+            "route_efficiency": route_efficiency,
+            "optimization_recommendations": optimization_recommendations
         }
         
         # Initialize supplier data

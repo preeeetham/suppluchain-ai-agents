@@ -297,7 +297,7 @@ export default function AgentManagement() {
                   <div className="space-y-3">
                     {communicationLog.length > 0 ? (
                       communicationLog.slice(0, 10).map((log, i) => (
-                        <div key={log.id || i} className="flex items-center gap-4 pb-3 border-b border-border last:border-0">
+                        <div key={`${log.id || 'log'}-${i}`} className="flex items-center gap-4 pb-3 border-b border-border last:border-0">
                           <div className="flex-1">
                             <p className="text-sm font-medium">
                               <span className="text-primary">{log.from_agent}</span>

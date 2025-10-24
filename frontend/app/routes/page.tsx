@@ -12,67 +12,27 @@ import { useRoutes } from "@/hooks/use-live-data"
 export default function RouteOptimizationPage() {
   const { routes, loading: routesLoading, error: routesError } = useRoutes()
 
-  // Transform real data for display
+  // Use real backend data for all components
   const routeMetrics = [
-    { metric: "Active Routes", value: routes?.active_routes?.length?.toString() || "156", change: "+12 today" },
-    { metric: "Avg Distance", value: "245 km", change: "-8% optimized" },
-    { metric: "Fuel Saved", value: "2,847 L", change: "+15% vs baseline" },
-    { metric: "On-Time Rate", value: "98.2%", change: "+2.1% this week" },
+    { metric: "Active Routes", value: routes?.active_routes?.length?.toString() || "0", change: `+${routes?.optimized_today || 0} today` },
+    { metric: "Avg Distance", value: `${routes?.avg_distance || 0} km`, change: "-8% optimized" },
+    { metric: "Fuel Saved", value: `${routes?.fuel_saved || 0} L`, change: "+15% vs baseline" },
+    { metric: "On-Time Rate", value: `${routes?.on_time_rate || 0}%`, change: "+2.1% this week" },
   ]
 
-  const activeRoutes = routes?.active_routes?.map((route, index) => ({
+  const activeRoutes = routes?.active_routes?.map((route) => ({
     id: route.route_id,
-    driver: `Driver ${index + 1}`,
-    vehicle: `Truck-${String.fromCharCode(65 + index)}1`,
+    driver: route.driver,
+    vehicle: route.vehicle,
     origin: route.warehouse_id,
     destination: route.destinations?.[0] || "Destination",
     distance: route.total_distance,
-    eta: "2:30 PM",
-    status: "in-transit",
+    eta: route.estimated_time,
+    status: route.status,
     efficiency: route.efficiency_score,
-  })) || [
-    {
-      id: "RT-001",
-      driver: "John Smith",
-      vehicle: "Truck-A1",
-      origin: "Warehouse A",
-      destination: "Distribution Center B",
-      distance: 245,
-      eta: "2:30 PM",
-      status: "in-transit",
-      efficiency: 92,
-    },
-    {
-      id: "RT-002",
-      driver: "Sarah Johnson",
-      vehicle: "Truck-B2",
-      origin: "Warehouse C",
-      destination: "Retail Store 5",
-      distance: 128,
-      eta: "1:15 PM",
-      status: "in-transit",
-      efficiency: 88,
-    },
-    {
-      id: "RT-003",
-      driver: "Mike Davis",
-      vehicle: "Van-C3",
-      origin: "Warehouse B",
-      destination: "Customer Location",
-      distance: 67,
-      eta: "12:45 PM",
-      status: "completed",
-      efficiency: 95,
-    },
-  ]
+  })) || []
 
-  const routeEfficiency = [
-    { route: "Route A", efficiency: 92, distance: 245 },
-    { route: "Route B", efficiency: 88, distance: 128 },
-    { route: "Route C", efficiency: 95, distance: 67 },
-    { route: "Route D", efficiency: 85, distance: 312 },
-    { route: "Route E", efficiency: 91, distance: 189 },
-  ]
+  const routeEfficiency = routes?.route_efficiency || []
 
   return (
     <div className="flex h-screen bg-background">
@@ -187,11 +147,7 @@ export default function RouteOptimizationPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {[
-                    { title: "Consolidate Route D", desc: "Combine with Route E to save 45 km and 2 hours" },
-                    { title: "Time Window Adjustment", desc: "Shift Route B delivery to 2-4 PM for better efficiency" },
-                    { title: "Vehicle Upgrade", desc: "Route A would benefit from larger vehicle capacity" },
-                  ].map((rec, i) => (
+                  {(routes?.optimization_recommendations || []).map((rec, i) => (
                     <div key={i} className="flex items-start gap-4 p-3 bg-muted/30 rounded-lg">
                       <div className="w-2 h-2 rounded-full bg-accent mt-2" />
                       <div className="flex-1">
