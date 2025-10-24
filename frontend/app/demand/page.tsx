@@ -12,34 +12,18 @@ import { useDemandForecasts } from "@/hooks/use-live-data"
 export default function DemandForecastingPage() {
   const { demand, loading: demandLoading, error: demandError } = useDemandForecasts()
 
-  // Transform real data for display
-  const demandForecast = [
-    { month: "Jan", actual: 12000, predicted: demand?.forecasts?.[0]?.predicted_demand || 11800, confidence: demand?.accuracy || 95 },
-    { month: "Feb", actual: 14000, predicted: demand?.forecasts?.[1]?.predicted_demand || 14200, confidence: demand?.accuracy || 94 },
-    { month: "Mar", actual: 16000, predicted: demand?.forecasts?.[2]?.predicted_demand || 15800, confidence: demand?.accuracy || 96 },
-    { month: "Apr", actual: 15000, predicted: demand?.forecasts?.[3]?.predicted_demand || 15200, confidence: demand?.accuracy || 93 },
-    { month: "May", actual: 18000, predicted: demand?.forecasts?.[4]?.predicted_demand || 17900, confidence: demand?.accuracy || 95 },
-    { month: "Jun", actual: 20000, predicted: demand?.forecasts?.[5]?.predicted_demand || 20100, confidence: demand?.accuracy || 94 },
-  ]
-
-  const productForecasts = demand?.forecasts?.map((forecast, index) => ({
+  // Use real backend data for all components
+  const demandForecast = demand?.historical_demand || []
+  
+  const productForecasts = demand?.forecasts?.map((forecast) => ({
     product: forecast.product_name,
-    q3: Math.floor(forecast.predicted_demand * 0.8),
-    q4: forecast.predicted_demand,
-    growth: forecast.seasonal_factor * 10,
-  })) || [
-    { product: "Widget A", q3: 45000, q4: 52000, growth: 15.6 },
-    { product: "Component X", q3: 32000, q4: 38000, growth: 18.8 },
-    { product: "Part Y", q3: 28000, q4: 31000, growth: 10.7 },
-    { product: "Assembly Z", q3: 18000, q4: 22000, growth: 22.2 },
-  ]
+    q3: forecast.q3_forecast,
+    q4: forecast.q4_forecast,
+    growth: forecast.growth_rate,
+    confidence: forecast.confidence_score
+  })) || []
 
-  const seasonalTrends = [
-    { season: "Q1", demand: 42000 },
-    { season: "Q2", demand: 45000 },
-    { season: "Q3", demand: 48000 },
-    { season: "Q4", demand: 58000 },
-  ]
+  const seasonalTrends = demand?.seasonal_trends || []
 
   return (
     <div className="flex h-screen bg-background">
@@ -77,10 +61,7 @@ export default function DemandForecastingPage() {
                       <div className="h-8 bg-muted rounded animate-pulse"></div>
                     ) : (
                       <p className="text-3xl font-bold">
-                        {demand?.forecasts?.length ? 
-                          Math.round(demand.forecasts.reduce((acc, f) => acc + f.confidence_score, 0) / demand.forecasts.length) : 
-                          94.5
-                        }%
+                        {demand?.avg_confidence || 94.5}%
                       </p>
                     )}
                     <p className="text-xs text-green-400">High confidence predictions</p>
@@ -96,12 +77,17 @@ export default function DemandForecastingPage() {
                     ) : (
                       <p className="text-3xl font-bold">
                         {demand?.forecasts?.length ? 
-                          Math.round(demand.forecasts.reduce((acc, f) => acc + f.predicted_demand, 0) / 1000) + 'K' : 
+                          Math.round(demand.forecasts.reduce((acc, f) => acc + f.q4_forecast, 0) / 1000) + 'K' : 
                           '143K'
                         }
                       </p>
                     )}
-                    <p className="text-xs text-green-400">+18.5% vs Q3</p>
+                    <p className="text-xs text-green-400">
+                      {demand?.forecasts?.length ? 
+                        `+${Math.round(demand.forecasts.reduce((acc, f) => acc + f.growth_rate, 0) / demand.forecasts.length)}% vs Q3` : 
+                        '+18.5% vs Q3'
+                      }
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -170,10 +156,10 @@ export default function DemandForecastingPage() {
                               <div className="w-16 bg-muted rounded-full h-2">
                                 <div
                                   className="bg-gradient-to-r from-primary to-accent h-2 rounded-full"
-                                  style={{ width: "95%" }}
+                                  style={{ width: `${product.confidence || 95}%` }}
                                 />
                               </div>
-                              <span className="text-xs">95%</span>
+                              <span className="text-xs">{product.confidence || 95}%</span>
                             </div>
                           </td>
                         </tr>
