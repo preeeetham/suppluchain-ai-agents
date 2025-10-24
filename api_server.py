@@ -365,9 +365,10 @@ async def initialize_data():
                     confidence = values[2] if isinstance(values[2], (int, float)) else 85
                     seasonal = values[3] if isinstance(values[3], (int, float)) else 1.0
                     
-                    # Generate realistic product names
+                    # Generate unique product names using product_id
                     product_names = ["Widget A", "Component X", "Part Y", "Assembly Z", "Module W"]
-                    product_name = product_names[hash(product_id) % len(product_names)]
+                    name_index = hash(product_id) % len(product_names)
+                    product_name = f"{product_names[name_index]} {product_id.split('-')[1]}"
                     
                     # Calculate Q3 and Q4 forecasts with seasonal adjustments
                     q3_forecast = int(base_demand * 0.8 * seasonal)

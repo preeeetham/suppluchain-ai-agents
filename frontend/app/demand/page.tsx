@@ -143,8 +143,8 @@ export default function DemandForecastingPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {productForecasts.map((product) => (
-                        <tr key={product.product} className="border-b border-border hover:bg-muted/30">
+                      {productForecasts.map((product, index) => (
+                        <tr key={`${product.product}-${index}`} className="border-b border-border hover:bg-muted/30">
                           <td className="py-3 px-4 font-medium">{product.product}</td>
                           <td className="py-3 px-4">{product.q3.toLocaleString()}</td>
                           <td className="py-3 px-4">{product.q4.toLocaleString()}</td>
