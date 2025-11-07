@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { apiClient, wsClient, AgentStatus, SystemMetrics, InventoryItem, DemandForecast, RouteOptimization, SupplierInfo, BlockchainTransaction, Activity, Alert } from "@/lib/api"
+import { apiClient, wsClient, AgentStatus, SystemMetrics, InventoryItem, DemandForecast, RouteOptimization, SupplierInfo, BlockchainTransaction, BlockchainData, Activity, Alert } from "@/lib/api"
 
 interface LiveDataOptions {
   channel: string
@@ -389,11 +389,7 @@ export function useSuppliers() {
 }
 
 export function useBlockchain() {
-  const [blockchain, setBlockchain] = useState<{
-    transactions: BlockchainTransaction[]
-    wallet_balance: number
-    network_status: string
-  } | null>(null)
+  const [blockchain, setBlockchain] = useState<BlockchainData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 

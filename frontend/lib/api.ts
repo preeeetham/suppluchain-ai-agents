@@ -61,7 +61,29 @@ export interface BlockchainTransaction {
   amount: number;
   timestamp: string;
   status: string;
-  agent_id: string;
+  from_wallet?: string;
+  to_wallet?: string;
+  product_id?: string;
+  blockchain_ready?: boolean;
+  agent_id?: string;
+}
+
+export interface BlockchainData {
+  transactions: BlockchainTransaction[];
+  wallets: Record<string, { public_key: string; sol_balance: number }>;
+  total_wallets: number;
+  total_nfts: number;
+  total_transactions: number;
+  network_status: {
+    current_slot: number;
+    network_health: string;
+    rpc_url: string;
+    transactions_per_second?: number;
+  };
+  main_wallet_balance: number;
+  nfts_created: number;
+  payments_processed: number;
+  wallet_addresses?: Record<string, string>;
 }
 
 export interface SystemMetrics {
@@ -273,12 +295,8 @@ class ApiClient {
   }
 
   // Blockchain Integration
-  async getBlockchainData(): Promise<{
-    transactions: BlockchainTransaction[];
-    wallet_balance: number;
-    network_status: string;
-  }> {
-    return this.request('/blockchain');
+  async getBlockchainData(): Promise<BlockchainData> {
+    return this.request<BlockchainData>('/blockchain');
   }
 
   // System Metrics

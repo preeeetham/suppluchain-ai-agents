@@ -175,33 +175,110 @@ cd supply-chain-ai-agents
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
+# Install Python dependencies
 pip install -r requirements.txt
+
+# Install frontend dependencies
+cd frontend
+npm install --legacy-peer-deps  # Use --legacy-peer-deps for React 19 compatibility
+cd ..
 ```
 
 ### **3. Setup Solana Blockchain**
 ```bash
-# Create Solana wallets
-python solana_setup.py
+# Activate virtual environment
+source venv/bin/activate
 
-# Fund main wallet with Devnet SOL
-# Get SOL from: https://faucet.solana.com/
+# Create Solana wallets (creates solana_wallets.json with 14 wallets)
+python3 create_wallets.py
+
+# The script will display the main wallet address
+# Fund main wallet with Devnet SOL from: https://faucet.solana.com/
+# Main wallet address will be displayed in the output
 ```
 
-### **4. Run AI Agents**
-```bash
-# Start all agents
-python agents/inventory_agent.py &
-python agents/demand_forecasting_agent.py &
-python agents/route_optimization_agent.py &
-python agents/supplier_coordination_agent.py &
+### **4. Start the System**
 
+#### **Option A: Docker (Recommended for Production)**
+```bash
+# Start Solana validator and AI agents in Docker
+./docker_setup.sh
+
+# This will:
+# - Start Solana validator on port 8899
+# - Start all 4 AI agents (ports 8001-8004)
+# - Agents will register on Agentverse/Almanac API
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f supply-chain-app
+```
+
+#### **Option B: Manual Startup (Development)**
+```bash
+# 1. Start AI Agents and Solana (Docker)
+docker-compose up -d solana-validator
+docker-compose up -d supply-chain-app
+
+# 2. Start Backend API Server
+source venv/bin/activate
+python3 -m uvicorn api_server:app --host 0.0.0.0 --port 8000 --reload &
+
+# 3. Start Frontend Development Server
+cd frontend
+npm run dev &
+cd ..
+
+# 4. Access the application
+# Frontend: http://localhost:3000
+# API Docs: http://localhost:8000/docs
+# WebSocket: ws://localhost:8000/ws
+```
+
+#### **Option C: Automated Startup Script**
+```bash
+# Make script executable (first time only)
+chmod +x start_development.sh
+
+# Start everything with one command (backend + frontend)
+./start_development.sh
+
+# This starts:
+# - Backend API server on port 8000
+# - Frontend dev server on port 3000
+# - WebSocket server on ws://localhost:8000/ws
+# Note: Agents still need to be started separately via Docker
+```
+
+### **5. Verify Everything is Running**
+```bash
+# Check API server
+curl http://localhost:8000/api/health
+
+# Check frontend
+curl http://localhost:3000
+
+# Check Docker containers
+docker-compose ps
+
+# Check agents status
+curl http://localhost:8000/api/agents
+
+# View all services
+# - Frontend: http://localhost:3000
+# - API Server: http://localhost:8000
+# - API Docs: http://localhost:8000/docs
+# - Solana RPC: http://localhost:8899
+# - Agents: Running in Docker (ports 8001-8004)
+```
+
+### **6. Run Simulations & Tests**
+```bash
 # Monitor agents
 python monitor_agents.py
-```
 
-### **5. Run Large-Scale Simulation**
-```bash
 # Test enterprise-scale operations
 python large_scale_simulation.py
 
@@ -209,13 +286,15 @@ python large_scale_simulation.py
 python system_integration_test.py
 ```
 
-### **6. Docker Deployment**
+### **7. Stop the System**
 ```bash
-# Build and start with Docker
-docker-compose up -d
+# Stop Docker containers
+docker-compose down
 
-# Run simulation in container
-docker-compose run --rm supply-chain-simulator python large_scale_simulation.py
+# Stop API server and frontend (if started manually)
+pkill -f "uvicorn api_server"
+pkill -f "npm run dev"
+pkill -f "next dev"
 ```
 
 ## 📁 Project Structure
@@ -278,11 +357,18 @@ supply-chain-ai-agents/
 
 ### **Blockchain Integration:**
 - ✅ **Solana Devnet**: Configured and operational
-- ✅ **Wallet Management**: 11 wallets for complete ecosystem
+- ✅ **Wallet Management**: 14 wallets for complete ecosystem (main + 4 agents + 3 warehouses + 3 suppliers + 3 customers)
 - ✅ **Product NFTs**: Blockchain-based inventory tracking
 - ✅ **Payment Processing**: Automated blockchain transactions
 - ✅ **Token Management**: Supply Chain Token (SCT) implementation
 - ✅ **Cross-chain Compatibility**: Ready for multi-chain integration
+
+### **Full-Stack Application:**
+- ✅ **Frontend**: Next.js 16 with React 19, TypeScript, Tailwind CSS
+- ✅ **Backend API**: FastAPI with WebSocket support
+- ✅ **Real-time Updates**: WebSocket integration for live data
+- ✅ **API Documentation**: Swagger/OpenAPI docs at `/docs`
+- ✅ **Charts & Visualization**: Recharts integration
 
 ## 📈 Performance Metrics
 
