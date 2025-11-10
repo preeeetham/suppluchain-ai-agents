@@ -4,30 +4,19 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-!frontend/lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+dist/
+build/
 
 # Virtual Environment
 venv/
 env/
 ENV/
-env.bak/
-venv.bak/
+
+# Logs
+*.log
+logs/
+*.log.*
 
 # IDE
 .vscode/
@@ -38,62 +27,32 @@ venv.bak/
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
 
 # Environment variables
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
-# Temporary files
-*.tmp
-*.temp
+# Node
+node_modules/
+.next/
+out/
+.npm
+.pnpm-store/
 
-# Credentials and sensitive data
-solana_wallets.json
-blockchain_data/
+# Test files (keep structure, ignore test data)
+blockchain_data/payments/*.json
+blockchain_data/nfts/*.json
+!blockchain_data/payments/.gitkeep
+!blockchain_data/nfts/.gitkeep
+
+# Solana
+test-ledger/
 *.key
-*.pem
-*.p12
-*.pfx
-*.jks
-*.keystore
 
-# Solana specific
-solana-config/
-*.json
-!package.json
-!tsconfig.json
-!requirements.json
+# Frontend build
+frontend/.next/
+frontend/out/
 
-# Agent credentials
-agent_*.json
-wallet_*.json
-keypair_*.json
-
-# Blockchain data
-nfts/
-payments/
-tokens/
-transactions/
-
-# Environment specific
-.env.production
-.env.staging
-.env.development
+# Docker
+.dockerignore
