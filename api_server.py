@@ -552,7 +552,10 @@ async def initialize_data():
         # Initialize blockchain data from REAL Solana integration
         blockchain_integration = get_blockchain_integration()
         
-        # Get REAL wallet summary with actual balances
+        # Ensure wallets are loaded
+        blockchain_integration.load_wallets()
+
+        # Get REAL wallet summary with actual balances (fresh from blockchain)
         wallet_summary = blockchain_integration.get_wallet_summary()
         
         # Load REAL NFT files from blockchain_data/nfts/
@@ -573,16 +576,21 @@ async def initialize_data():
             try:
                 with open(os.path.join(payments_dir, payment_file), 'r') as f:
                     payment_data = json.load(f)
+                    # Use actual transaction signature if available, otherwise use file-based ID
+                    tx_id = payment_data.get('signature') or payment_data.get('transaction_id') or payment_file.replace('.json', '').replace('payment_', 'tx-')
+                    
                     real_transactions.append({
-                        "transaction_id": payment_file.replace('.json', '').replace('payment_', 'tx-'),
+                        "transaction_id": tx_id,
+                        "signature": payment_data.get('signature'),
                         "type": payment_data.get('type', 'supply_chain_payment'),
                         "amount": payment_data.get('amount', 0),
                         "timestamp": payment_data.get('timestamp', datetime.now().isoformat()),
-                        "status": payment_data.get('status', 'confirmed'),
+                        "status": payment_data.get('status', 'pending'),
                         "from_wallet": payment_data.get('from_wallet', 'unknown'),
                         "to_wallet": payment_data.get('to_wallet', 'unknown'),
                         "product_id": payment_data.get('product_id'),
-                        "blockchain_ready": payment_data.get('blockchain_ready', False)
+                        "blockchain_ready": payment_data.get('blockchain_ready', False),
+                        "confirmed_on_blockchain": payment_data.get('confirmed_on_blockchain', False)
                     })
             except Exception as e:
                 logger.warning(f"Error reading payment file {payment_file}: {e}")
@@ -726,9 +734,287 @@ async def get_suppliers():
 async def get_blockchain_data():
     """Get blockchain transaction data"""
     try:
+        # Refresh blockchain data to get latest balances
+        await initialize_data()
         return blockchain_cache
     except Exception as e:
         logger.error(f"Error getting blockchain data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== INTERACTIVE BLOCKCHAIN ENDPOINTS ====================
+
+class TransferRequest(BaseModel):
+    from_wallet: str
+    to_wallet: str
+    amount: float
+
+class CreateNFTRequest(BaseModel):
+    product_id: str
+    warehouse_wallet: str
+    metadata: Dict[str, Any]
+
+class ProcessPaymentRequest(BaseModel):
+    from_wallet: str
+    to_wallet: str
+    amount: float
+    product_id: Optional[str] = None
+
+class CreateWalletRequest(BaseModel):
+    wallet_name: str
+
+class UpdateNFTRequest(BaseModel):
+    product_id: str
+    updates: Dict[str, Any]
+
+class TransferNFTRequest(BaseModel):
+    product_id: str
+    new_owner_wallet: str
+
+@app.post("/api/blockchain/transfer")
+async def transfer_sol(request: TransferRequest):
+    """Transfer SOL from one wallet to another"""
+    try:
+        blockchain = get_blockchain_integration()
+        result = blockchain.transfer_sol(
+            from_wallet_name=request.from_wallet,
+            to_wallet_name=request.to_wallet,
+            amount=request.amount
+        )
+        
+        # Wait for transaction to be confirmed on blockchain
+        # The transfer_sol function already waits for confirmation
+        await asyncio.sleep(0.5)  # Small additional delay for balance propagation
+        
+        # Force refresh wallet balances from blockchain (fresh query, no cache)
+        blockchain_integration = get_blockchain_integration()
+        
+        # Get fresh balances directly from blockchain for the two wallets involved
+        from_balance = blockchain_integration.get_wallet_balance(request.from_wallet)
+        to_balance = blockchain_integration.get_wallet_balance(request.to_wallet)
+        
+        logger.info(f"Updated balances - {request.from_wallet}: {from_balance} SOL, {request.to_wallet}: {to_balance} SOL")
+        
+        # Refresh blockchain cache with updated balances
+        await initialize_data()
+        
+        # Broadcast update to WebSocket clients with fresh data
+        await manager.broadcast(json.dumps({
+            "type": "data_update",
+            "blockchain": blockchain_cache,
+            "timestamp": datetime.now().isoformat()
+        }, default=str))
+        
+        return {
+            "success": True,
+            "transaction": result,
+            "message": f"Successfully transferred {request.amount} SOL from {request.from_wallet} to {request.to_wallet}",
+            "updated_balances": {
+                request.from_wallet: from_balance,
+                request.to_wallet: to_balance
+            }
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error transferring SOL: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/blockchain/create-nft")
+async def create_product_nft(request: CreateNFTRequest):
+    """Create a Product NFT for supply chain tracking"""
+    try:
+        blockchain = get_blockchain_integration()
+        
+        # Validate warehouse wallet exists
+        if request.warehouse_wallet not in blockchain.wallets:
+            raise HTTPException(status_code=400, detail=f"Warehouse wallet {request.warehouse_wallet} not found")
+        
+        result = blockchain.create_product_nft_metadata(
+            product_id=request.product_id,
+            warehouse_wallet=request.warehouse_wallet,
+            metadata=request.metadata
+        )
+        
+        # Refresh blockchain cache
+        await initialize_data()
+        
+        # Broadcast update to WebSocket clients
+        await manager.broadcast(json.dumps({
+            "type": "data_update",
+            "blockchain": blockchain_cache,
+            "timestamp": datetime.now().isoformat()
+        }, default=str))
+        
+        return {
+            "success": True,
+            "nft": result,
+            "message": f"Successfully created NFT for product {request.product_id}"
+        }
+    except Exception as e:
+        logger.error(f"Error creating NFT: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/blockchain/process-payment")
+async def process_payment(request: ProcessPaymentRequest):
+    """Process a supply chain payment"""
+    try:
+        blockchain = get_blockchain_integration()
+        result = blockchain.process_supply_chain_payment(
+            from_wallet=request.from_wallet,
+            to_wallet=request.to_wallet,
+            amount=request.amount,
+            product_id=request.product_id
+        )
+        
+        # Refresh blockchain cache
+        await initialize_data()
+        
+        # Broadcast update to WebSocket clients
+        await manager.broadcast(json.dumps({
+            "type": "data_update",
+            "blockchain": blockchain_cache,
+            "timestamp": datetime.now().isoformat()
+        }, default=str))
+        
+        return {
+            "success": True,
+            "payment": result,
+            "message": f"Successfully processed payment of {request.amount} SOL"
+        }
+    except Exception as e:
+        logger.error(f"Error processing payment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/blockchain/create-wallet")
+async def create_wallet(request: CreateWalletRequest):
+    """Create a new Solana wallet"""
+    try:
+        blockchain = get_blockchain_integration()
+        result = blockchain.create_wallet(wallet_name=request.wallet_name)
+        
+        # Refresh blockchain cache
+        await initialize_data()
+        
+        # Broadcast update to WebSocket clients
+        await manager.broadcast(json.dumps({
+            "type": "data_update",
+            "blockchain": blockchain_cache,
+            "timestamp": datetime.now().isoformat()
+        }, default=str))
+        
+        return {
+            "success": True,
+            "wallet": {
+                "name": result["name"],
+                "public_key": result["public_key"]
+            },
+            "message": f"Successfully created wallet {request.wallet_name}"
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error creating wallet: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/blockchain/wallet/{wallet_name}")
+async def get_wallet_details(wallet_name: str):
+    """Get detailed information about a wallet"""
+    try:
+        blockchain = get_blockchain_integration()
+        result = blockchain.get_wallet_details(wallet_name=wallet_name)
+        return {
+            "success": True,
+            "wallet": result
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting wallet details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/blockchain/transactions")
+async def get_transactions(
+    wallet_name: Optional[str] = None,
+    transaction_type: Optional[str] = None,
+    limit: int = 50
+):
+    """Get transaction history with optional filters"""
+    try:
+        blockchain = get_blockchain_integration()
+        transactions = blockchain.get_transaction_history(
+            wallet_name=wallet_name,
+            limit=limit,
+            transaction_type=transaction_type
+        )
+        return {
+            "success": True,
+            "transactions": transactions,
+            "count": len(transactions)
+        }
+    except Exception as e:
+        logger.error(f"Error getting transactions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/blockchain/update-nft")
+async def update_nft_metadata(request: UpdateNFTRequest):
+    """Update metadata for an existing Product NFT"""
+    try:
+        blockchain = get_blockchain_integration()
+        result = blockchain.update_nft_metadata(
+            product_id=request.product_id,
+            updates=request.updates
+        )
+        
+        # Refresh blockchain cache
+        await initialize_data()
+        
+        # Broadcast update to WebSocket clients
+        await manager.broadcast(json.dumps({
+            "type": "data_update",
+            "blockchain": blockchain_cache,
+            "timestamp": datetime.now().isoformat()
+        }, default=str))
+        
+        return {
+            "success": True,
+            "nft": result,
+            "message": f"Successfully updated NFT metadata for {request.product_id}"
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating NFT: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/blockchain/transfer-nft")
+async def transfer_nft_ownership(request: TransferNFTRequest):
+    """Transfer NFT ownership to a new wallet"""
+    try:
+        blockchain = get_blockchain_integration()
+        result = blockchain.transfer_nft_ownership(
+            product_id=request.product_id,
+            new_owner_wallet=request.new_owner_wallet
+        )
+        
+        # Refresh blockchain cache
+        await initialize_data()
+        
+        # Broadcast update to WebSocket clients
+        await manager.broadcast(json.dumps({
+            "type": "data_update",
+            "blockchain": blockchain_cache,
+            "timestamp": datetime.now().isoformat()
+        }, default=str))
+        
+        return {
+            "success": True,
+            "nft": result,
+            "message": f"Successfully transferred NFT {request.product_id} to {request.new_owner_wallet}"
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error transferring NFT: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/metrics", response_model=SystemMetrics)
@@ -1440,7 +1726,7 @@ async def get_system_settings():
                 "health_check_timeout": 10
             },
             "blockchain": {
-                "network": "devnet",
+                "network": "local",
                 "rpc_url": "http://localhost:8899",
                 "transaction_timeout": 30,
                 "gas_limit": 1000000
@@ -1485,7 +1771,7 @@ async def backup_system_settings():
             "settings": {
                 "general": {"system_name": "Supply Chain AI Agents"},
                 "agents": {"auto_start": True},
-                "blockchain": {"network": "devnet"},
+                "blockchain": {"network": "local"},
                 "notifications": {"email_alerts": True}
             }
         }
