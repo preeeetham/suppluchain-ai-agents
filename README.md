@@ -95,11 +95,29 @@ We've built a **decentralized, autonomous supply chain management platform** tha
 ## 🔗 Solana Blockchain Integration
 
 ### **Blockchain Features:**
-- **11 Solana Wallets**: Main funding + 4 agent wallets + 3 warehouse wallets + 3 supplier wallets
-- **Product NFTs**: Blockchain-based inventory tracking for each product
-- **Supply Chain Token (SCT)**: Custom token for supply chain payments
-- **Payment Processing**: Automated blockchain transactions between agents
-- **Transparency**: All transactions recorded on Solana blockchain
+- **14 Solana Wallets**: Main funding + 4 agent wallets + 3 warehouse wallets + 3 supplier wallets + 3 customer wallets
+- **🎨 Product NFTs (On-Chain)**: Real SPL Token NFTs minted on Solana blockchain for product tracking
+- **💰 SOL Transfers**: Interactive wallet-to-wallet transfers with on-chain confirmation
+- **💸 Payment Processing**: Supply chain payments between suppliers, warehouses, and customers
+- **📊 Real-time Balance Updates**: Live balance queries with Finalized commitment
+- **🔍 Transaction Verification**: All transactions verified on Solana blockchain
+
+### **NFT Features (NEW):**
+- **Real On-Chain Minting**: Creates actual SPL Token NFTs on Solana (supply=1, decimals=0)
+- **Mint Address Tracking**: Each NFT has a unique mint address on blockchain
+- **Token Account Management**: Dedicated token accounts for NFT ownership
+- **Ownership Transfer**: Transfer NFT ownership between wallets in supply chain
+- **Blockchain Verification**: Verify NFT existence and ownership on-chain
+- **Frontend Gallery**: View all NFTs with mint addresses, metadata, and on-chain status
+
+### **Interactive Blockchain Operations:**
+- ✅ Transfer SOL between any wallets
+- ✅ Create real Product NFTs on Solana blockchain
+- ✅ Transfer NFT ownership (product movement tracking)
+- ✅ Process supply chain payments
+- ✅ Create new wallets
+- ✅ View detailed transaction history
+- ✅ Update NFT metadata
 
 ### **Wallet Addresses:**
 - **Main Funding**: `FTVwE1N4KsF2UMz3ubpR3AocHWMnN6PSHmdBN8kwGJNb`
@@ -143,7 +161,8 @@ docker-compose run --rm supply-chain-simulator python large_scale_simulation.py
 - **Supplier Negotiations**: 8 automated procurement cycles
 - **Route Optimizations**: 25 routes with distance/time optimization
 - **Blockchain Payments**: 8+ transactions per cycle
-- **NFT Creation**: 8+ inventory tracking tokens
+- **NFT Creation**: Real SPL Token NFTs on Solana blockchain
+- **On-Chain Verification**: All NFTs verifiable on Solana Explorer
 
 ## 🧠 Knowledge Graph Integration
 

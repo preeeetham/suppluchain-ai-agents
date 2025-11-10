@@ -46,9 +46,13 @@ blockchain_data/nfts/*.json
 !blockchain_data/payments/.gitkeep
 !blockchain_data/nfts/.gitkeep
 
+# Demo and test scripts
+demo_*.py
+
 # Solana
 test-ledger/
 *.key
+solana_wallets.json
 
 # Frontend build
 frontend/.next/

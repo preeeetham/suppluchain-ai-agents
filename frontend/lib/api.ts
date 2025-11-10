@@ -391,6 +391,22 @@ class ApiClient {
     });
   }
 
+  async getNFTByProductId(productId: string): Promise<{
+    success: boolean;
+    nft: any;
+  }> {
+    return this.request(`/blockchain/nft/${productId}`);
+  }
+
+  async getNFTsByOwner(walletName: string): Promise<{
+    success: boolean;
+    nfts: any[];
+    count: number;
+    owner: string;
+  }> {
+    return this.request(`/blockchain/nfts/owner/${walletName}`);
+  }
+
   // System Metrics
   async getSystemMetrics(): Promise<SystemMetrics> {
     return this.request('/metrics');

@@ -821,7 +821,7 @@ async def transfer_sol(request: TransferRequest):
 
 @app.post("/api/blockchain/create-nft")
 async def create_product_nft(request: CreateNFTRequest):
-    """Create a Product NFT for supply chain tracking"""
+    """Create a Product NFT for supply chain tracking (mints real on-chain NFT)"""
     try:
         blockchain = get_blockchain_integration()
         
@@ -829,9 +829,10 @@ async def create_product_nft(request: CreateNFTRequest):
         if request.warehouse_wallet not in blockchain.wallets:
             raise HTTPException(status_code=400, detail=f"Warehouse wallet {request.warehouse_wallet} not found")
         
-        result = blockchain.create_product_nft_metadata(
+        # Use the new mint_product_nft function to create real on-chain NFT
+        result = blockchain.mint_product_nft(
             product_id=request.product_id,
-            warehouse_wallet=request.warehouse_wallet,
+            owner_wallet_name=request.warehouse_wallet,
             metadata=request.metadata
         )
         
@@ -848,7 +849,7 @@ async def create_product_nft(request: CreateNFTRequest):
         return {
             "success": True,
             "nft": result,
-            "message": f"Successfully created NFT for product {request.product_id}"
+            "message": f"Successfully minted on-chain NFT for product {request.product_id}. Mint address: {result.get('mint_address', 'N/A')}"
         }
     except Exception as e:
         logger.error(f"Error creating NFT: {e}")
@@ -988,12 +989,14 @@ async def update_nft_metadata(request: UpdateNFTRequest):
 
 @app.post("/api/blockchain/transfer-nft")
 async def transfer_nft_ownership(request: TransferNFTRequest):
-    """Transfer NFT ownership to a new wallet"""
+    """Transfer NFT ownership to a new wallet (on-chain transfer)"""
     try:
         blockchain = get_blockchain_integration()
-        result = blockchain.transfer_nft_ownership(
+        
+        # Use the new transfer_nft_on_chain function for real on-chain transfers
+        result = blockchain.transfer_nft_on_chain(
             product_id=request.product_id,
-            new_owner_wallet=request.new_owner_wallet
+            new_owner_wallet_name=request.new_owner_wallet
         )
         
         # Refresh blockchain cache
@@ -1009,12 +1012,51 @@ async def transfer_nft_ownership(request: TransferNFTRequest):
         return {
             "success": True,
             "nft": result,
-            "message": f"Successfully transferred NFT {request.product_id} to {request.new_owner_wallet}"
+            "message": f"Successfully transferred NFT {request.product_id} to {request.new_owner_wallet} on-chain. Transaction: {result.get('transfer_transaction', 'N/A')[:20]}..."
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error transferring NFT: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/blockchain/nft/{product_id}")
+async def get_nft_by_product_id(product_id: str):
+    """Get NFT information by product ID"""
+    try:
+        blockchain = get_blockchain_integration()
+        nft = blockchain.get_nft_by_product_id(product_id)
+        
+        if nft is None:
+            raise HTTPException(status_code=404, detail=f"NFT for product {product_id} not found")
+        
+        return {
+            "success": True,
+            "nft": nft
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting NFT: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/blockchain/nfts/owner/{wallet_name}")
+async def get_nfts_by_owner(wallet_name: str):
+    """Get all NFTs owned by a specific wallet"""
+    try:
+        blockchain = get_blockchain_integration()
+        nfts = blockchain.get_nfts_by_owner(wallet_name)
+        
+        return {
+            "success": True,
+            "nfts": nfts,
+            "count": len(nfts),
+            "owner": wallet_name
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting NFTs by owner: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/metrics", response_model=SystemMetrics)

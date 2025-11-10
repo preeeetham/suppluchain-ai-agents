@@ -5,7 +5,7 @@ import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Blocks, Copy, ExternalLink, CheckCircle, Wallet, TrendingUp, Send, Plus, CreditCard, Coins } from "lucide-react"
+import { Blocks, Copy, ExternalLink, CheckCircle, Wallet, TrendingUp, Send, Plus, CreditCard, Coins, Image as ImageIcon, Shield } from "lucide-react"
 import { useBlockchain } from "@/hooks/use-live-data"
 import { formatDistanceToNow } from "date-fns"
 import { useState, useEffect } from "react"
@@ -13,6 +13,7 @@ import { TransferSOLModal } from "@/components/blockchain/transfer-sol-modal"
 import { CreateNFTModal } from "@/components/blockchain/create-nft-modal"
 import { ProcessPaymentModal } from "@/components/blockchain/process-payment-modal"
 import { CreateWalletModal } from "@/components/blockchain/create-wallet-modal"
+import { apiClient } from "@/lib/api"
 
 export default function BlockchainPage() {
   const { blockchain, loading, error, refetch } = useBlockchain()
@@ -21,6 +22,8 @@ export default function BlockchainPage() {
   const [createNFTModalOpen, setCreateNFTModalOpen] = useState(false)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [createWalletModalOpen, setCreateWalletModalOpen] = useState(false)
+  const [nfts, setNfts] = useState<any[]>([])
+  const [nftsLoading, setNftsLoading] = useState(false)
 
   const copyToClipboard = (text: string, txId: string) => {
     navigator.clipboard.writeText(text)
@@ -77,6 +80,42 @@ export default function BlockchainPage() {
 
   const transactions = blockchain?.transactions || []
   const networkStatus = blockchain?.network_status
+
+  // Fetch NFTs for all wallets
+  useEffect(() => {
+    const fetchNFTs = async () => {
+      if (!blockchain?.wallets) return
+      
+      setNftsLoading(true)
+      try {
+        const allNFTs: any[] = []
+        const walletNames = Object.keys(blockchain.wallets)
+        
+        // Fetch NFTs for each wallet
+        for (const walletName of walletNames) {
+          try {
+            const result = await apiClient.getNFTsByOwner(walletName)
+            if (result.success && result.nfts) {
+              allNFTs.push(...result.nfts)
+            }
+          } catch (err) {
+            // Skip wallets with no NFTs
+            console.debug(`No NFTs found for wallet ${walletName}`)
+          }
+        }
+        
+        setNfts(allNFTs)
+      } catch (err) {
+        console.error('Error fetching NFTs:', err)
+      } finally {
+        setNftsLoading(false)
+      }
+    }
+
+    if (blockchain && !loading) {
+      fetchNFTs()
+    }
+  }, [blockchain, loading])
 
   return (
     <div className="flex h-screen bg-background">
@@ -314,7 +353,144 @@ export default function BlockchainPage() {
               </CardContent>
             </Card>
 
-                {/* Wallet Summary */}
+                {/* NFT Gallery */}
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-accent" />
+                  Product NFTs (On-Chain)
+                </CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Real Solana NFTs tracking products in the supply chain
+                </p>
+              </CardHeader>
+              <CardContent>
+                {nftsLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Loading NFTs...</p>
+                  </div>
+                ) : nfts.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ImageIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No NFTs created yet.</p>
+                    <p className="text-xs mt-2">Create your first product NFT to start tracking on the blockchain.</p>
+                    <Button 
+                      onClick={() => setCreateNFTModalOpen(true)} 
+                      variant="outline" 
+                      size="sm"
+                      className="mt-4"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create NFT
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {nfts.map((nft) => {
+                      const mintAddress = nft.mint_address || 'N/A'
+                      const tokenAccount = nft.token_account || 'N/A'
+                      const isOnChain = nft.on_chain || false
+                      const isCopied = copiedHash === mintAddress
+                      
+                      return (
+                        <div key={nft.product_id} className="border border-border rounded-lg p-4 hover:bg-muted/30 transition">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <p className="font-semibold">{nft.metadata?.name || nft.product_id}</p>
+                                {isOnChain && (
+                                  <Badge className="bg-green-500/20 text-green-400">
+                                    <Shield className="w-3 h-3 mr-1" />
+                                    On-Chain
+                                  </Badge>
+                                )}
+                                {nft.status === 'confirmed' && (
+                                  <Badge className="bg-blue-500/20 text-blue-400">
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Confirmed
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              <div className="space-y-2 text-sm">
+                                <div>
+                                  <p className="text-muted-foreground text-xs">Product ID</p>
+                                  <p className="font-mono text-xs">{nft.product_id}</p>
+                                </div>
+                                
+                                {nft.metadata && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs">Category</p>
+                                    <p className="text-xs">{nft.metadata.category || 'N/A'}</p>
+                                  </div>
+                                )}
+                                
+                                <div>
+                                  <p className="text-muted-foreground text-xs">Owner</p>
+                                  <p className="text-xs">{nft.owner_wallet || 'N/A'}</p>
+                                </div>
+                                
+                                {mintAddress !== 'N/A' && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs">Mint Address</p>
+                                    <div className="flex items-center gap-2">
+                                      <code className="text-xs font-mono flex-1 truncate">{mintAddress}</code>
+                                      <Button 
+                                        size="sm" 
+                                        variant="ghost" 
+                                        className="h-6 w-6 p-0"
+                                        onClick={() => copyToClipboard(mintAddress, mintAddress)}
+                                      >
+                                        <Copy className={`w-3 h-3 ${isCopied ? 'text-green-400' : ''}`} />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {tokenAccount !== 'N/A' && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs">Token Account</p>
+                                    <p className="font-mono text-xs truncate">{formatSolanaAddress(tokenAccount)}</p>
+                                  </div>
+                                )}
+                                
+                                {nft.transaction_signature && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs">Transaction</p>
+                                    <p className="font-mono text-xs truncate">{formatSolanaAddress(nft.transaction_signature)}</p>
+                                  </div>
+                                )}
+                                
+                                {nft.created_at && (
+                                  <div>
+                                    <p className="text-muted-foreground text-xs">Created</p>
+                                    <p className="text-xs">{formatTimestamp(nft.created_at)}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {mintAddress !== 'N/A' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="bg-transparent w-full mt-3"
+                              onClick={() => window.open(getSolanaExplorerUrl(mintAddress), '_blank')}
+                            >
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              View on Solana Explorer
+                            </Button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Wallet Summary */}
                 {blockchain.wallets && Object.keys(blockchain.wallets).length > 0 && (
             <Card className="bg-card border-border">
               <CardHeader>
@@ -370,9 +546,17 @@ export default function BlockchainPage() {
                   onSuccess={() => {
                     // Immediate refresh
                     refetch?.()
+                    // Refresh NFTs
+                    setNftsLoading(true)
                     // Also refresh after a short delay to ensure backend has updated
-                    setTimeout(() => refetch?.(), 500)
-                    setTimeout(() => refetch?.(), 1500)
+                    setTimeout(() => {
+                      refetch?.()
+                      setNftsLoading(false)
+                    }, 500)
+                    setTimeout(() => {
+                      refetch?.()
+                      setNftsLoading(false)
+                    }, 1500)
                   }}
                 />
                 <ProcessPaymentModal
