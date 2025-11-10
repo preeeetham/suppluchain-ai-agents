@@ -1,0 +1,110 @@
+{
+  "main_wallet": {
+    "name": "main_wallet",
+    "public_key": "9scxe4EpQrjvN9BMNQZXt2KS5jTDokKeNhdg1XdceQQs",
+    "private_key": "EDHbMEmPHTMQh3GdpmDXZ875ZGdXgEGaLxxUMBfFED9HpMdS8kFwDTesvdpvYGvd8CPbtsZJ1zzwaDURH93DxXM",
+    "secret_key": "0b64b487f7ea5ced5bce45a687bc1ded199b512bdffdd7e0449739e1d7d469ab83d531f652926a4feb8db6b0e2ea38371b6c41ae69db59e10b952bd319b0f19c"
+  },
+  "inventory_agent": {
+    "name": "inventory_agent",
+    "public_key": "G56wKnPYK1HiitNjb7hgc32vrXG2FQmK2abDcboFxiyH",
+    "private_key": "ErQk8n7BvgfVgAMjMv9R33Rpn5Ata49c2SBGZrecUU3SfvuysZNBWzT8mCjsiz5F2aL5LdRURkyCSNdZm9Eoktb",
+    "secret_key": "0bf201d55ab2763ddd9b4782a253d4550238dee3702cf12f12108bda6a3db63ddfec56f5b746a68abf52c181b7675b1b8c2b8562378f84e0618c88b68992cfbc"
+  },
+  "demand_agent": {
+    "name": "demand_agent",
+    "public_key": "3difQjPeuBde557yENGXfG5bFnHFcsb2TajYxY2vyAGm",
+    "private_key": "3wFTowaMf1meS1C39Zm9rzqdCfwM23LbKvYEm6qvUdLAEqhXoDVQxX6vjthRmgz1SEsLuZwhxkqgatj2YKZtNnNy",
+    "secret_key": "92d10b1e8c1e85b9d2185ba494f48c7866d6aea946fff47417dda944627fcf29271f63fefa51b56e9343194944edac19472050f7a1ed4396f2f7e8fc84a586c6"
+  },
+  "route_agent": {
+    "name": "route_agent",
+    "public_key": "E922creJMNgbFfBVewsLKsE53pAmh8ozmpbDqKsKyqv6",
+    "private_key": "29XmnsNd53nyzE9uGGsqd6XD5c9FcgCDYqsn99px5YxxiGghfiBS7EpdeGnR6QEYrsV3gWaLXoeqFSY3T7UEbCV4",
+    "secret_key": "395f98dbbd6e451195714c112d9a87fbd1e5dea3c10988763ca87a7440b9f5bbc335bd1fbcbe9f0142dd58863d57be17b22cb9482049f04b68c6c3ac11d15467"
+  },
+  "supplier_agent": {
+    "name": "supplier_agent",
+    "public_key": "A2HmTaFvZa4cHeSmhHiAr4mGfwMaHhpN2JyWvAZcYqY2",
+    "private_key": "46tiQGsXJGhz8vmau39LQGxd9k18Yxg896cGnH1jkqYXsXxN5c5V79HqhXcBSnbA2HpJr3h31WYkY6KnfELpRbE6",
+    "secret_key": "9b21b74058479ef6fe40193680717d427529622ecad462803c212f1bd2265922860db89ab92abd4410b9a886cedb422e2e685bc8c8125eabc029aa8cb47b738f"
+  },
+  "warehouse_001": {
+    "name": "warehouse_001",
+    "public_key": "BZNUREQ1aYriuoytkuwpAKHoiigBZPxtyXZY9HL8QLMN",
+    "private_key": "64gHXP7uB1PjStJt9roLUSXmzRshJUh1qjjyBjaZCiyyj4WQA6x12GVz5UULdc4yrb91ZwA9SoQniSTHSELrdFNg",
+    "secret_key": "fd4194e2960445c77267bb451589a2572a73e46065885d3ab5cc528557c35c9e9cdfbc0401aac41f85e2332d13b337cf34d57dcf7cafcd926f1b0d46fef8ad31"
+  },
+  "warehouse_002": {
+    "name": "warehouse_002",
+    "public_key": "HJ1io3tpQ18WkKGn3oscN6sDuZmpXMEGozCes1GLzCAh",
+    "private_key": "2sYmLaGF6757Qnez3UcMQShLWqUuv2xFdWVcnstCNctuPD8kkX2Pysm2N9GKRQeAFdbJsz76FVDdrzxuoKWYdVYH",
+    "secret_key": "5d9b7d849531a8ca46d12af7174048247688be1122f2b071472b28f9facde971f216ade987829d09e8cb800d08b8cf41073d220d0609cb9367a19a2c5d89d636"
+  },
+  "warehouse_003": {
+    "name": "warehouse_003",
+    "public_key": "2VBGivN7dRgz16S6zo4JxHhVxSYLSU29d9gf79aWArQT",
+    "private_key": "5mNm1vSrcti8NMvB5GiGJoRf3AkuDJWA21DbWS97DXnQVw57UaYUc33XzoeYoWyUAiM6NyoHSFDV6z4ZmMtrnADR",
+    "secret_key": "ee55df7c175487337ab76055491537e8c79b88dde3aa805a004af6b4642b3829161390294924a4ff21c39f30aac2aa8ed527fc14db3818d2ded94943b68ba60c"
+  },
+  "supplier_001": {
+    "name": "supplier_001",
+    "public_key": "D2Cj76i6XaYdJiaAzHgSen9PU8QpUQWpjRsvRyq6duPK",
+    "private_key": "MAtfbb3es3zUMidnVJXiNwSZDBSE1nMtpRw2Su1nwUTpRV5xwKavEcecxNcjqYVCvjCjsoYH7NBSDXUNe1Ao8fw",
+    "secret_key": "1164f0d97330422bfed46ea2c49f645ecbfff222a09f39db6877f97a17f0fd9eb29b151eba5217f163ec70ecf1ac22d8ed1e784fae11cd6471010266ef6a104e"
+  },
+  "supplier_002": {
+    "name": "supplier_002",
+    "public_key": "8yNtj4A7mRM5QejxDjGuGpMgTKyDyQ8BsNYszBcQrB8N",
+    "private_key": "4HXtb3bqdx4nq9ZEHqBx3HFjqFDGYPvDKYiDuLKMXQbRGDWWeEx5rhHJTnTwF7aKJkVY9sZLEETnCBf9fjA2iZqL",
+    "secret_key": "a44edd1ddd17d1e72b6c2414c217fdf2cd78b728ebcd1207f05490a245f69c7576731641e600ea5e42eedf6b4e5bd451f7f77f2d60c0affbfd972673e85ff90b"
+  },
+  "supplier_003": {
+    "name": "supplier_003",
+    "public_key": "3NqaH3asjJ5cEvhoWXMUcHgAWr7S7XYhuCs7DdwzPcTe",
+    "private_key": "5q4Dv1BcDUB7g8vGCN1PRtN4PK7bp29nfSYmLPnwNDpn3Dy6tN3pjjE199sLEHbQKi5w5jLdrZHAPkpUKuVLG3Ze",
+    "secret_key": "f18260a075add6299fd5c3da0f31a5bd6a86bbf0fdb64f8aaa16381b276c4c1a234f7e4b90e302bca7878782a7b7eb2694856f544369bee7319f2aec9004aeb5"
+  },
+  "customer_001": {
+    "name": "customer_001",
+    "public_key": "ADcgkuVS2hWkcH3ePqCSexN4eWXM1o2Coc2mN5ECL3mM",
+    "private_key": "5mLMK1c31iMWionk1XCm836ncYvDEVvZohqvm6Ffv6FkQTpV9ddB1wZYqHvYWJy1YJZKYgqgkWRmQezwJ9tsvmxo",
+    "secret_key": "ee4cb46953362472db4d2c4d0794805b3709241a847b37d58f967a8888fcbf1488f4807164831a7235d664212fd86b36dc05df975630925cb6ec93871b7c059c"
+  },
+  "customer_002": {
+    "name": "customer_002",
+    "public_key": "2CN5PmeYwMz4a1CCVQLaAU4cBZbBu6tMr2Y5W2bSEHiL",
+    "private_key": "3sNSDqyG6eRn6RiZ9Hq24nRUNZCV5aRChgEMKiHgDmxnZkf1VV9qYthQfisiRrQ2mhyCjh2MYsPnkNVWndBAWx3n",
+    "secret_key": "8f7886467bab241ce22f7bfffb6b0a4618e1216183cfe3e643d7df28a7d6f60711c4e7ff00ca3ddd95f2029bdd353bf5bd2fa342205801c554862634813a0235"
+  },
+  "customer_003": {
+    "name": "customer_003",
+    "public_key": "3d1F2xMoHJoofxH5xEG9PgnFYxYiTXBezpTxEjQc32gy",
+    "private_key": "4YokaXSR2JAR1rEWjEHp6Jfsxanz3VD8qj78m2vZJuizcsLECxoEJhPrrJsFwvb1bkJZror3KnAsgF66xNyksAem",
+    "secret_key": "b17ab57fec9623777198442508014dec186201dc12353f26258370ab61d4d94726f08e7b07bed95aa209e8481873ae3006d3d322f75193ab0ee024398afb8312"
+  },
+  "test_wallet_final": {
+    "name": "test_wallet_final",
+    "public_key": "Arzcz6FDXyqZDw8wg92K4Jbc8BxfXz2tzzdKdR2dLAnx",
+    "private_key": "3TRBZ4SpVfXWirvZLkTEUfiMaxPcWfMhj63bs3J8qf2zRMku5p5F2sVh2Ggyhw3fqJ6XM4K9mvrsA1AN7YggkMZn",
+    "secret_key": "7ad0a0dbae452116455c4ff823e9713718d35cbb2af6f52e7a600a852fa82b739287cb2936cc7990c0eb45ff1c32196e3d38b0679ab9607d93022e40a9952385"
+  },
+  "test_wallet_new": {
+    "name": "test_wallet_new",
+    "public_key": "9M8MhnJP1UcDmjH6n5dDs6Kfn951QKqmU4sEvvxfSYFC",
+    "private_key": "2oxBNTxtgzLwt1hPic7RESRsp42Ej75z9jhPXQNnE1nLf1s11E4WmFSQnzWc3i72r4imRCTUJwXwqE7ogfcEH522",
+    "secret_key": "5a818da80a491397e37bb400a5f47e19699e632711ef66d12f05e5cdf4aa01117c056e1c840febd7623efe937d5ae7ce4c5b6ac61a417ae08bf5781fdcf85afb"
+  },
+  "test_wallet_1762706436": {
+    "name": "test_wallet_1762706436",
+    "public_key": "9mCKa4nVWvLXXxX2cQ38CC67T1s41LZrQAsdVt4sZETd",
+    "private_key": "oPU4pB3DrAXpa4sFKNnhptkkeqQSQ15pp2kUEU7uFyyZEDgMi3Gz45TKmPtqXGMgYsyVkhkWd6nECYZ7GU3HLaw",
+    "secret_key": "2800b09f51fccdbc766ecdbb08fc867566fffbd43d3037bd95be648f4567221f822fd9cc2b8e33a38d612f42e4ceb509cc2ff77b60365ffd19356ac6ea534c9c"
+  },
+  "test_wallet_001": {
+    "name": "test_wallet_001",
+    "public_key": "3FbJDDcz7Ji6tWM53gx1TStBNxgG8kbyanDSg2EyN96K",
+    "private_key": "2eicDVFgJwkmVR2UvTkj2mJfBjAnHGT6Qz5xco2w1goeHzAcP3i1UsB46xyXghJwsiftuLKKedFewHRh7E6H19By",
+    "secret_key": "528b037f269d6095efaba6693928db73fbc8db802cbf305981171e81913386f5217448dcfcda6d03438131870e582cea1aeb35ddd74c69f1c6f9b15fb8ec10fc"
+  }
+}
