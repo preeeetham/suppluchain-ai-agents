@@ -393,12 +393,12 @@ export function useBlockchain() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-  useEffect(() => {
     const fetchBlockchain = async () => {
       try {
         setLoading(true)
         const data = await apiClient.getBlockchainData()
         setBlockchain(data)
+      setError(null)
       } catch (err) {
         console.warn('Error fetching data (using fallback data):', err)
         // Don't set error state for connection issues, just use fallback data
@@ -410,6 +410,7 @@ export function useBlockchain() {
       }
     }
 
+  useEffect(() => {
     fetchBlockchain()
   }, [])
 
@@ -422,6 +423,7 @@ export function useBlockchain() {
       if (data.blockchain) {
         console.log('📊 Updating blockchain from WebSocket:', data.blockchain)
         setBlockchain(data.blockchain)
+        setError(null) // Clear any errors on successful update
       }
     })
 
@@ -430,7 +432,7 @@ export function useBlockchain() {
     }
   }, [])
 
-  return { blockchain, loading, error }
+  return { blockchain, loading, error, refetch: fetchBlockchain }
 }
 
 export function useActivities() {

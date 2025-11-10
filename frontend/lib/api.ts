@@ -299,6 +299,98 @@ class ApiClient {
     return this.request<BlockchainData>('/blockchain');
   }
 
+  // Interactive Blockchain Operations
+  async transferSOL(fromWallet: string, toWallet: string, amount: number): Promise<{
+    success: boolean;
+    transaction: any;
+    message: string;
+  }> {
+    return this.request('/blockchain/transfer', {
+      method: 'POST',
+      body: JSON.stringify({ from_wallet: fromWallet, to_wallet: toWallet, amount }),
+    });
+  }
+
+  async createNFT(productId: string, warehouseWallet: string, metadata: Record<string, any>): Promise<{
+    success: boolean;
+    nft: any;
+    message: string;
+  }> {
+    return this.request('/blockchain/create-nft', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, warehouse_wallet: warehouseWallet, metadata }),
+    });
+  }
+
+  async processPayment(fromWallet: string, toWallet: string, amount: number, productId?: string): Promise<{
+    success: boolean;
+    payment: any;
+    message: string;
+  }> {
+    return this.request('/blockchain/process-payment', {
+      method: 'POST',
+      body: JSON.stringify({ from_wallet: fromWallet, to_wallet: toWallet, amount, product_id: productId }),
+    });
+  }
+
+  async createWallet(walletName: string): Promise<{
+    success: boolean;
+    wallet: { name: string; public_key: string };
+    message: string;
+  }> {
+    return this.request('/blockchain/create-wallet', {
+      method: 'POST',
+      body: JSON.stringify({ wallet_name: walletName }),
+    });
+  }
+
+  async getWalletDetails(walletName: string): Promise<{
+    success: boolean;
+    wallet: {
+      name: string;
+      public_key: string;
+      sol_balance: number;
+      recent_transactions: any[];
+      total_transactions: number;
+    };
+  }> {
+    return this.request(`/blockchain/wallet/${walletName}`);
+  }
+
+  async getTransactions(walletName?: string, transactionType?: string, limit: number = 50): Promise<{
+    success: boolean;
+    transactions: any[];
+    count: number;
+  }> {
+    const params = new URLSearchParams();
+    if (walletName) params.append('wallet_name', walletName);
+    if (transactionType) params.append('transaction_type', transactionType);
+    params.append('limit', limit.toString());
+    return this.request(`/blockchain/transactions?${params.toString()}`);
+  }
+
+  async updateNFTMetadata(productId: string, updates: Record<string, any>): Promise<{
+    success: boolean;
+    nft: any;
+    message: string;
+  }> {
+    return this.request('/blockchain/update-nft', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, updates }),
+    });
+  }
+
+  async transferNFTOwnership(productId: string, newOwnerWallet: string): Promise<{
+    success: boolean;
+    nft: any;
+    message: string;
+  }> {
+    return this.request('/blockchain/transfer-nft', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, new_owner_wallet: newOwnerWallet }),
+    });
+  }
+
   // System Metrics
   async getSystemMetrics(): Promise<SystemMetrics> {
     return this.request('/metrics');

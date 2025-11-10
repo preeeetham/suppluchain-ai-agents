@@ -5,14 +5,22 @@ import { Header } from "@/components/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Blocks, Copy, ExternalLink, CheckCircle, Wallet, TrendingUp } from "lucide-react"
+import { Blocks, Copy, ExternalLink, CheckCircle, Wallet, TrendingUp, Send, Plus, CreditCard, Coins } from "lucide-react"
 import { useBlockchain } from "@/hooks/use-live-data"
 import { formatDistanceToNow } from "date-fns"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { TransferSOLModal } from "@/components/blockchain/transfer-sol-modal"
+import { CreateNFTModal } from "@/components/blockchain/create-nft-modal"
+import { ProcessPaymentModal } from "@/components/blockchain/process-payment-modal"
+import { CreateWalletModal } from "@/components/blockchain/create-wallet-modal"
 
 export default function BlockchainPage() {
-  const { blockchain, loading, error } = useBlockchain()
+  const { blockchain, loading, error, refetch } = useBlockchain()
   const [copiedHash, setCopiedHash] = useState<string | null>(null)
+  const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [createNFTModalOpen, setCreateNFTModalOpen] = useState(false)
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [createWalletModalOpen, setCreateWalletModalOpen] = useState(false)
 
   const copyToClipboard = (text: string, txId: string) => {
     navigator.clipboard.writeText(text)
@@ -45,7 +53,7 @@ export default function BlockchainPage() {
       value: blockchain.total_transactions?.toLocaleString() || "0", 
       change: `+${blockchain.payments_processed || 0} processed` 
     },
-    { 
+    {
       label: "Network Status", 
       value: blockchain.network_status?.network_health || "Unknown", 
       change: blockchain.network_status?.rpc_url || "Not connected" 
@@ -78,14 +86,36 @@ export default function BlockchainPage() {
         <main className="flex-1 overflow-auto pt-16 p-6">
           <div className="max-w-7xl mx-auto space-y-8">
             {/* Header */}
+            <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold">Blockchain Integration</h1>
-              <p className="text-muted-foreground mt-1">
-                Real-time supply chain records on Solana network
-                {blockchain?.network_status?.rpc_url && (
-                  <span className="ml-2 text-xs">({blockchain.network_status.rpc_url})</span>
-                )}
-              </p>
+                <p className="text-muted-foreground mt-1">
+                  Real-time supply chain records on Solana network
+                  {blockchain?.network_status?.rpc_url && (
+                    <span className="ml-2 text-xs">({blockchain.network_status.rpc_url})</span>
+                  )}
+                </p>
+              </div>
+              {!loading && !error && blockchain && (
+                <div className="flex gap-2">
+                  <Button onClick={() => setTransferModalOpen(true)} variant="outline" size="sm">
+                    <Coins className="w-4 h-4 mr-2" />
+                    Transfer SOL
+                  </Button>
+                  <Button onClick={() => setCreateNFTModalOpen(true)} variant="outline" size="sm">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create NFT
+                  </Button>
+                  <Button onClick={() => setPaymentModalOpen(true)} variant="outline" size="sm">
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Process Payment
+                  </Button>
+                  <Button onClick={() => setCreateWalletModalOpen(true)} variant="outline" size="sm">
+                    <Wallet className="w-4 h-4 mr-2" />
+                    Create Wallet
+                  </Button>
+                </div>
+              )}
             </div>
 
             {loading && (
@@ -102,45 +132,45 @@ export default function BlockchainPage() {
 
             {!loading && !error && blockchain && (
               <>
-                {/* Blockchain Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {blockchainStats.map((stat) => (
-                    <Card key={stat.label} className="bg-card border-border">
-                      <CardContent className="pt-6">
-                        <div className="space-y-2">
-                          <p className="text-sm text-muted-foreground">{stat.label}</p>
-                          <p className="text-2xl font-bold">{stat.value}</p>
-                          <p className="text-xs text-green-400">{stat.change}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+            {/* Blockchain Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {blockchainStats.map((stat) => (
+                <Card key={stat.label} className="bg-card border-border">
+                  <CardContent className="pt-6">
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">{stat.label}</p>
+                      <p className="text-2xl font-bold">{stat.value}</p>
+                      <p className="text-xs text-green-400">{stat.change}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
 
-                {/* Network Status */}
-                <Card className="bg-card border-border">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Blocks className="w-5 h-5 text-accent" />
-                      Solana Network Status
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="p-4 bg-muted/30 rounded-lg">
+            {/* Network Status */}
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Blocks className="w-5 h-5 text-accent" />
+                  Solana Network Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-muted/30 rounded-lg">
                         <p className="text-sm text-muted-foreground mb-2">Current Slot</p>
                         <p className="text-2xl font-bold font-mono">
                           {networkStatus?.current_slot?.toLocaleString() || "0"}
                         </p>
-                      </div>
-                      <div className="p-4 bg-muted/30 rounded-lg">
-                        <p className="text-sm text-muted-foreground mb-2">Transactions/sec</p>
+                  </div>
+                  <div className="p-4 bg-muted/30 rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-2">Transactions/sec</p>
                         <p className="text-2xl font-bold">
                           {networkStatus?.transactions_per_second?.toLocaleString() || "4,200+"}
                         </p>
-                      </div>
-                      <div className="p-4 bg-muted/30 rounded-lg">
-                        <p className="text-sm text-muted-foreground mb-2">Network Health</p>
+                  </div>
+                  <div className="p-4 bg-muted/30 rounded-lg">
+                    <p className="text-sm text-muted-foreground mb-2">Network Health</p>
                         <Badge className={
                           networkStatus?.network_health === "healthy" 
                             ? "bg-green-500/20 text-green-400" 
@@ -170,21 +200,21 @@ export default function BlockchainPage() {
                               </p>
                             </div>
                           ))}
-                        </div>
-                      </div>
+                  </div>
+                </div>
                     )}
-                  </CardContent>
-                </Card>
+              </CardContent>
+            </Card>
 
-                {/* Recent Transactions */}
-                <Card className="bg-card border-border">
-                  <CardHeader>
-                    <CardTitle>Recent Blockchain Transactions</CardTitle>
+            {/* Recent Transactions */}
+            <Card className="bg-card border-border">
+              <CardHeader>
+                <CardTitle>Recent Blockchain Transactions</CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
                       Real transactions from {blockchain.payments_processed || 0} payment records
                     </p>
-                  </CardHeader>
-                  <CardContent>
+              </CardHeader>
+              <CardContent>
                     {transactions.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <p>No transactions yet. Transactions will appear here when agents process payments.</p>
@@ -196,37 +226,37 @@ export default function BlockchainPage() {
                         </ul>
                       </div>
                     ) : (
-                      <div className="space-y-3">
+                <div className="space-y-3">
                         {transactions.slice(0, 10).map((tx) => {
                           const txHash = tx.transaction_id || tx.transaction_id || "unknown"
                           const isCopied = copiedHash === txHash
                           
                           return (
                             <div key={txHash} className="border border-border rounded-lg p-4 hover:bg-muted/30 transition">
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
                                     <p className="font-semibold">
                                       {tx.type === 'supply_chain_payment' ? 'Supply Chain Payment' :
                                        tx.type === 'wallet_initialization' ? 'Wallet Initialization' :
                                        tx.type || 'Transaction'}
                                     </p>
-                                    <Badge
-                                      className={
-                                        tx.status === "confirmed"
-                                          ? "bg-green-500/20 text-green-400"
-                                          : "bg-yellow-500/20 text-yellow-400"
-                                      }
-                                    >
-                                      {tx.status === "confirmed" ? (
-                                        <>
-                                          <CheckCircle className="w-3 h-3 mr-1" />
-                                          Confirmed
-                                        </>
-                                      ) : (
-                                        "Pending"
-                                      )}
-                                    </Badge>
+                            <Badge
+                              className={
+                                tx.status === "confirmed"
+                                  ? "bg-green-500/20 text-green-400"
+                                  : "bg-yellow-500/20 text-yellow-400"
+                              }
+                            >
+                              {tx.status === "confirmed" ? (
+                                <>
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Confirmed
+                                </>
+                              ) : (
+                                "Pending"
+                              )}
+                            </Badge>
                                     {tx.blockchain_ready && (
                                       <Badge className="bg-blue-500/20 text-blue-400">Blockchain Ready</Badge>
                                     )}
@@ -245,14 +275,14 @@ export default function BlockchainPage() {
                                     {tx.product_id && (
                                       <p>Product: <span className="font-semibold">{tx.product_id}</span></p>
                                     )}
-                                  </div>
-                                </div>
+                          </div>
+                        </div>
                                 <span className="text-xs text-muted-foreground">{formatTimestamp(tx.timestamp)}</span>
-                              </div>
+                      </div>
 
-                              <div className="bg-muted/30 rounded p-3 mb-3">
+                      <div className="bg-muted/30 rounded p-3 mb-3">
                                 <p className="text-xs text-muted-foreground mb-2">Transaction ID</p>
-                                <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                                   <code className="text-xs font-mono flex-1 truncate">{txHash}</code>
                                   <Button 
                                     size="sm" 
@@ -261,9 +291,9 @@ export default function BlockchainPage() {
                                     onClick={() => copyToClipboard(txHash, txHash)}
                                   >
                                     <Copy className={`w-4 h-4 ${isCopied ? 'text-green-400' : ''}`} />
-                                  </Button>
-                                </div>
-                              </div>
+                          </Button>
+                        </div>
+                      </div>
 
                               {tx.from_wallet && (
                                 <Button 
@@ -272,49 +302,102 @@ export default function BlockchainPage() {
                                   className="bg-transparent w-full"
                                   onClick={() => window.open(getSolanaExplorerUrl(tx.from_wallet!), '_blank')}
                                 >
-                                  <ExternalLink className="w-4 h-4 mr-2" />
-                                  View on Solana Explorer
-                                </Button>
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        View on Solana Explorer
+                      </Button>
                               )}
-                            </div>
+                    </div>
                           )
                         })}
-                      </div>
+                </div>
                     )}
-                  </CardContent>
-                </Card>
+              </CardContent>
+            </Card>
 
                 {/* Wallet Summary */}
                 {blockchain.wallets && Object.keys(blockchain.wallets).length > 0 && (
-                  <Card className="bg-card border-border">
-                    <CardHeader>
+            <Card className="bg-card border-border">
+              <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Wallet className="w-5 h-5 text-accent" />
                         Wallet Summary
                       </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
                         {Object.entries(blockchain.wallets).map(([name, info]: [string, any]) => (
                           <div key={name} className="border border-border rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-2">
                               <p className="font-semibold">{name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
                               <Badge className="bg-green-500/20 text-green-400">
                                 {info.sol_balance?.toFixed(4) || "0.0000"} SOL
                               </Badge>
-                            </div>
+                      </div>
                             <div className="grid grid-cols-1 gap-2 text-sm">
-                              <div>
+                        <div>
                                 <p className="text-muted-foreground">Public Address</p>
                                 <p className="font-mono text-xs break-all">{info.public_key || 'N/A'}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
                 )}
+              </>
+            )}
+
+            {/* Interactive Modals */}
+            {blockchain && (
+              <>
+                <TransferSOLModal
+                  open={transferModalOpen}
+                  onOpenChange={setTransferModalOpen}
+                  wallets={blockchain.wallets || {}}
+                  onSuccess={() => {
+                    // Immediate refresh
+                    refetch?.()
+                    // Also refresh after a short delay to ensure backend has updated
+                    setTimeout(() => refetch?.(), 500)
+                    setTimeout(() => refetch?.(), 1500)
+                  }}
+                />
+                <CreateNFTModal
+                  open={createNFTModalOpen}
+                  onOpenChange={setCreateNFTModalOpen}
+                  wallets={blockchain.wallets || {}}
+                  onSuccess={() => {
+                    // Immediate refresh
+                    refetch?.()
+                    // Also refresh after a short delay to ensure backend has updated
+                    setTimeout(() => refetch?.(), 500)
+                    setTimeout(() => refetch?.(), 1500)
+                  }}
+                />
+                <ProcessPaymentModal
+                  open={paymentModalOpen}
+                  onOpenChange={setPaymentModalOpen}
+                  wallets={blockchain.wallets || {}}
+                  onSuccess={() => {
+                    // Immediate refresh
+                    refetch?.()
+                    // Also refresh after a short delay to ensure backend has updated
+                    setTimeout(() => refetch?.(), 500)
+                    setTimeout(() => refetch?.(), 1500)
+                  }}
+                />
+                <CreateWalletModal
+                  open={createWalletModalOpen}
+                  onOpenChange={setCreateWalletModalOpen}
+                  onSuccess={() => {
+                    // Immediate refresh
+                    refetch?.()
+                    // Also refresh after a short delay to ensure backend has updated
+                    setTimeout(() => refetch?.(), 500)
+                    setTimeout(() => refetch?.(), 1500)
+                  }}
+                />
               </>
             )}
           </div>
