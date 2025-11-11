@@ -69,7 +69,10 @@ class SolanaBlockchainIntegration:
             balance = self.client.get_balance(public_key, commitment=Finalized)
             return balance.value / 1e9  # Convert lamports to SOL
         except Exception as e:
-            logger.error(f"Error getting balance for {wallet_name}: {e}")
+            # Only log error if it's not a connection issue (to avoid spam)
+            error_str = str(e)
+            if "Connection" not in error_str and "refused" not in error_str.lower():
+                logger.error(f"Error getting balance for {wallet_name}: {e}")
             return 0.0
     
     def fund_wallet(self, wallet_name: str, amount: float = 10.0) -> Optional[str]:
@@ -91,6 +94,71 @@ class SolanaBlockchainIntegration:
         except Exception as e:
             logger.error(f"❌ Airdrop failed for {wallet_name}: {e}")
             return None
+    
+    def auto_fund_wallets(self, min_balance: float = 1.0, funding_amounts: Dict[str, float] = None):
+        """
+        Automatically fund wallets that have balance below min_balance
+        This ensures wallets have SOL for transactions on startup
+        
+        Args:
+            min_balance: Minimum balance threshold (default 1.0 SOL)
+            funding_amounts: Dict mapping wallet names to funding amounts
+                           If None, uses default amounts based on wallet type
+        """
+        if funding_amounts is None:
+            # Default funding amounts based on wallet type
+            funding_amounts = {
+                "main_wallet": 100.0,
+                "warehouse_001": 10.0,
+                "warehouse_002": 10.0,
+                "warehouse_003": 10.0,
+                "supplier_001": 10.0,
+                "supplier_002": 10.0,
+                "supplier_003": 10.0,
+                "inventory_agent": 5.0,
+                "demand_agent": 5.0,
+                "route_agent": 5.0,
+                "supplier_agent": 5.0,
+                "customer_001": 5.0,
+                "customer_002": 5.0,
+                "customer_003": 5.0,
+            }
+        
+        funded_count = 0
+        # First, check if validator is accessible
+        try:
+            health = self.client.get_health()
+            if not health.value:
+                logger.warning("⚠️  Solana validator not accessible, skipping auto-funding")
+                return 0
+        except Exception as e:
+            logger.warning(f"⚠️  Cannot connect to Solana validator at {self.devnet_url}: {e}")
+            logger.warning("⚠️  Skipping auto-funding - validator may not be running")
+            return 0
+        
+        for wallet_name in self.wallets.keys():
+            try:
+                balance = self.get_wallet_balance(wallet_name)
+                amount = funding_amounts.get(wallet_name, 5.0)  # Default 5 SOL for unknown wallets
+                
+                if balance < min_balance:
+                    logger.info(f"💰 Auto-funding {wallet_name} (balance: {balance:.4f} SOL < {min_balance} SOL)")
+                    result = self.fund_wallet(wallet_name, amount)
+                    if result:
+                        funded_count += 1
+                        logger.info(f"✅ Funded {wallet_name} with {amount} SOL")
+                    else:
+                        logger.warning(f"⚠️  Failed to fund {wallet_name}")
+                    time.sleep(0.5)  # Small delay between airdrops
+            except Exception as e:
+                logger.warning(f"⚠️  Error checking/funding {wallet_name}: {e}")
+        
+        if funded_count > 0:
+            logger.info(f"🪂 Auto-funded {funded_count} wallets")
+            # Wait for confirmations
+            time.sleep(2)
+        
+        return funded_count
     
     def get_wallet_summary(self) -> Dict:
         """Get summary of all wallets and their balances"""
@@ -561,21 +629,24 @@ class SolanaBlockchainIntegration:
         if not os.path.exists(nfts_dir):
             return nfts
         
-        # Get all NFT files
-        nft_files = [f for f in os.listdir(nfts_dir) if f.endswith('_nft.json')]
-        
-        for nft_file in nft_files:
-            try:
-                with open(os.path.join(nfts_dir, nft_file), 'r') as f:
-                    nft_info = json.load(f)
-                
-                # Check if this NFT is owned by the specified wallet
-                if nft_info.get('owner_wallet') == owner_wallet_name:
-                    nfts.append(nft_info)
+        try:
+            # Get all NFT files (optimized - single listdir call)
+            nft_files = [f for f in os.listdir(nfts_dir) if f.endswith('_nft.json')]
+            
+            for nft_file in nft_files:
+                try:
+                    with open(os.path.join(nfts_dir, nft_file), 'r') as f:
+                        nft_info = json.load(f)
                     
-            except Exception as e:
-                logger.warning(f"Error reading NFT file {nft_file}: {e}")
-                continue
+                    # Check if this NFT is owned by the specified wallet
+                    if nft_info.get('owner_wallet') == owner_wallet_name:
+                        nfts.append(nft_info)
+                        
+                except Exception as e:
+                    logger.debug(f"Error reading NFT file {nft_file}: {e}")
+                    continue
+        except Exception as e:
+            logger.warning(f"Error accessing NFT directory: {e}")
         
         return nfts
     
@@ -847,9 +918,9 @@ class SolanaBlockchainIntegration:
             
             transaction_signature = send_result.value
             
-            # Wait for confirmation
+            # Wait for confirmation with extended timeout
             logger.info(f"Waiting for NFT mint confirmation: {transaction_signature}")
-            max_wait = 30
+            max_wait = 60  # Increased from 30 to 60 seconds
             wait_time = 0
             status = "pending"
             
@@ -860,17 +931,23 @@ class SolanaBlockchainIntegration:
                     if sig_status.err is None:
                         if sig_status.confirmation_status:
                             status = "confirmed"
-                            logger.info(f"NFT minted successfully on Solana {network_name}: {transaction_signature}")
+                            logger.info(f"✅ NFT minted successfully on Solana {network_name}: {transaction_signature}")
                             break
                     else:
                         status = "failed"
                         logger.error(f"NFT mint failed: {sig_status.err}")
                         break
+                
+                # Log progress every 10 seconds
+                if wait_time > 0 and wait_time % 10 == 0:
+                    logger.info(f"Still waiting for confirmation... ({wait_time}s elapsed)")
+                
                 time.sleep(1)
                 wait_time += 1
             
             if status != "confirmed":
-                raise Exception(f"NFT mint transaction not confirmed after {max_wait} seconds")
+                logger.warning(f"Transaction not confirmed after {max_wait} seconds, saving NFT with pending status")
+                # Don't raise exception - save NFT anyway with pending status
             
             # Create NFT info with on-chain data
             nft_info = {
@@ -885,7 +962,8 @@ class SolanaBlockchainIntegration:
                 "status": status,
                 "blockchain_ready": True,
                 "on_chain": True,
-                "token_standard": "SPL Token NFT"
+                "token_standard": "SPL Token NFT",
+                "confirmation_wait_time": wait_time
             }
             
             # Save NFT info to file (for reference)
