@@ -412,23 +412,19 @@ export function useBlockchain() {
 
   useEffect(() => {
     fetchBlockchain()
-  }, [])
-
-  // Set up WebSocket connection for real-time updates
-  useEffect(() => {
-    wsClient.connect()
     
+    // Don't connect WebSocket multiple times - causes crashes
+    // WebSocket is managed globally, only subscribe to updates
     const unsubscribe = wsClient.subscribe('data_update', (data) => {
-      console.log('🔄 WebSocket blockchain data received:', data)
       if (data.blockchain) {
-        console.log('📊 Updating blockchain from WebSocket:', data.blockchain)
         setBlockchain(data.blockchain)
-        setError(null) // Clear any errors on successful update
+        setError(null)
       }
     })
 
     return () => {
       unsubscribe()
+      // Don't disconnect WebSocket on unmount
     }
   }, [])
 

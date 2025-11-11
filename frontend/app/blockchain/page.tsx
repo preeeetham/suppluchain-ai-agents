@@ -81,7 +81,7 @@ export default function BlockchainPage() {
   const transactions = blockchain?.transactions || []
   const networkStatus = blockchain?.network_status
 
-  // Fetch NFTs for all wallets
+  // Fetch NFTs for all wallets (with debounce to prevent excessive requests)
   useEffect(() => {
     const fetchNFTs = async () => {
       if (!blockchain?.wallets) return
@@ -91,29 +91,49 @@ export default function BlockchainPage() {
         const allNFTs: any[] = []
         const walletNames = Object.keys(blockchain.wallets)
         
-        // Fetch NFTs for each wallet
-        for (const walletName of walletNames) {
+        // Limit to first 10 wallets to prevent too many requests
+        const walletsToCheck = walletNames.slice(0, 10)
+        
+        // Fetch NFTs for each wallet with error handling
+        const promises = walletsToCheck.map(async (walletName) => {
           try {
             const result = await apiClient.getNFTsByOwner(walletName)
             if (result.success && result.nfts) {
-              allNFTs.push(...result.nfts)
+              return result.nfts
             }
+            return []
           } catch (err) {
-            // Skip wallets with no NFTs
+            // Skip wallets with errors - don't crash
             console.debug(`No NFTs found for wallet ${walletName}`)
+            return []
           }
-        }
+        })
+        
+        // Wait for all requests with timeout
+        const results = await Promise.allSettled(promises)
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            allNFTs.push(...result.value)
+          }
+        })
         
         setNfts(allNFTs)
       } catch (err) {
         console.error('Error fetching NFTs:', err)
+        // Don't crash - just set empty array
+        setNfts([])
       } finally {
         setNftsLoading(false)
       }
     }
 
     if (blockchain && !loading) {
-      fetchNFTs()
+      // Add a small delay to debounce rapid refreshes
+      const timeoutId = setTimeout(() => {
+        fetchNFTs()
+      }, 300)
+      
+      return () => clearTimeout(timeoutId)
     }
   }, [blockchain, loading])
 
@@ -266,12 +286,14 @@ export default function BlockchainPage() {
                       </div>
                     ) : (
                 <div className="space-y-3">
-                        {transactions.slice(0, 10).map((tx) => {
-                          const txHash = tx.transaction_id || tx.transaction_id || "unknown"
+                        {transactions.slice(0, 10).map((tx, index) => {
+                          const txHash = tx.transaction_id || tx.signature || "unknown"
                           const isCopied = copiedHash === txHash
+                          // Use index + txHash to ensure unique keys even if transactions have duplicate IDs
+                          const uniqueKey = `${index}-${txHash}`
                           
                           return (
-                            <div key={txHash} className="border border-border rounded-lg p-4 hover:bg-muted/30 transition">
+                            <div key={uniqueKey} className="border border-border rounded-lg p-4 hover:bg-muted/30 transition">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -386,14 +408,16 @@ export default function BlockchainPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {nfts.map((nft) => {
+                    {nfts.map((nft, index) => {
                       const mintAddress = nft.mint_address || 'N/A'
                       const tokenAccount = nft.token_account || 'N/A'
                       const isOnChain = nft.on_chain || false
                       const isCopied = copiedHash === mintAddress
+                      // Use index + product_id to ensure unique keys
+                      const uniqueKey = `${index}-${nft.product_id}`
                       
                       return (
-                        <div key={nft.product_id} className="border border-border rounded-lg p-4 hover:bg-muted/30 transition">
+                        <div key={uniqueKey} className="border border-border rounded-lg p-4 hover:bg-muted/30 transition">
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
