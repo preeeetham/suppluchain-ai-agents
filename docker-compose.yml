@@ -1,30 +1,37 @@
 services:
-  solana-validator:
-    image: solanalabs/solana:v1.18.4
-    container_name: supply-chain-solana-validator
+  # Using host system's Solana validator (already running on ports 8899/8900)
+  # No container needed - blockchain will be on system terminal
+
+  backend-api:
+    build: .
+    container_name: supply-chain-backend
     ports:
-      - "8899:8899"  # RPC port
-      - "8900:8900"  # Gossip port
-      - "9900:9900"  # Metrics port
+      - "8000:8000"  # Backend API Server
     volumes:
-      - solana-data:/root/.local/share/solana
-      - ./solana-config:/root/solana-config
-    command: >
-      solana-test-validator
-      --reset
-      --quiet
-      --rpc-port 8899
-      --faucet-sol 1000000
-      --limit-ledger-size 50000000
-      --log
+      - ./data:/app/data
+      - ./blockchain_data:/app/blockchain_data
+      - ./solana_wallets.json:/app/solana_wallets.json
+      - ./agents:/app/agents
+      - ./utils:/app/utils
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      - RUST_LOG=info
+      - SOLANA_RPC_URL=http://host.docker.internal:8899
+      - SOLANA_WS_URL=ws://host.docker.internal:8900
+      - PYTHONUNBUFFERED=1
     networks:
       - supply-chain-network
+    command: >
+      sh -c "
+        echo '🚀 Starting Backend API Server...' &&
+        python api_server.py
+      "
 
-  supply-chain-app:
+  supply-chain-agents:
     build: .
-    container_name: supply-chain-ai-agents
+    container_name: supply-chain-agents
+    depends_on:
+      - backend-api
     ports:
       - "8001:8001"  # Inventory Agent
       - "8002:8002"  # Demand Agent
@@ -34,42 +41,25 @@ services:
       - ./data:/app/data
       - ./blockchain_data:/app/blockchain_data
       - ./solana_wallets.json:/app/solana_wallets.json
+      - ./agents:/app/agents
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       - SOLANA_RPC_URL=http://host.docker.internal:8899
       - SOLANA_WS_URL=ws://host.docker.internal:8900
+      - PYTHONUNBUFFERED=1
     networks:
       - supply-chain-network
     command: >
       sh -c "
-        echo 'Starting Supply Chain AI Agents...' &&
-        python agents/inventory_agent.py &
-        python agents/demand_forecasting_agent.py &
-        python agents/route_optimization_agent.py &
-        python agents/supplier_coordination_agent.py &
-        wait
+        echo '🤖 Starting Supply Chain AI Agents...' &&
+        python agents/inventory_agent.py > /app/agents/inventory_agent.log 2>&1 &
+        python agents/demand_forecasting_agent.py > /app/agents/demand_agent.log 2>&1 &
+        python agents/route_optimization_agent.py > /app/agents/route_agent.log 2>&1 &
+        python agents/supplier_coordination_agent.py > /app/agents/supplier_agent.log 2>&1 &
+        echo '✅ All agents started' &&
+        tail -f /dev/null
       "
-
-  supply-chain-simulator:
-    build: .
-    container_name: supply-chain-simulator
-    depends_on:
-      - supply-chain-app
-    volumes:
-      - ./data:/app/data
-      - ./blockchain_data:/app/blockchain_data
-      - ./solana_wallets.json:/app/solana_wallets.json
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      - SOLANA_RPC_URL=http://host.docker.internal:8899
-    networks:
-      - supply-chain-network
-    command: python run_simulation.py
-
-volumes:
-  solana-data:
 
 networks:
   supply-chain-network:

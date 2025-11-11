@@ -20,15 +20,8 @@ COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir uagents>=0.4.0
-RUN pip install --no-cache-dir pandas>=1.5.0
-RUN pip install --no-cache-dir numpy>=1.21.0
-RUN pip install --no-cache-dir requests>=2.28.0
-RUN pip install --no-cache-dir python-dotenv>=0.19.0
-RUN pip install --no-cache-dir pytest>=7.0.0
-RUN pip install --no-cache-dir solana>=0.30.0
-RUN pip install --no-cache-dir solders>=0.20.0
-RUN pip install --no-cache-dir base58>=2.1.0
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir cosmpy
 
 # Copy application code
 COPY . .
@@ -41,7 +34,7 @@ ENV PYTHONPATH=/app
 ENV SOLANA_RPC_URL=http://localhost:8899
 
 # Expose ports
-EXPOSE 8001 8002 8003 8004
+EXPOSE 8000 8001 8002 8003 8004
 
 # Default command
-CMD ["python", "system_integration_test.py"]
+CMD ["python", "api_server.py"]
