@@ -214,10 +214,13 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# Track if we've done initial auto-funding
+_auto_funded_on_startup = False
+
 # Initialize data from agents
-async def initialize_data():
+async def initialize_data(force_auto_fund=False):
     """Initialize data from agents and MeTTa knowledge graph"""
-    global agent_status_cache, inventory_cache, demand_cache, route_cache, supplier_cache, blockchain_cache
+    global agent_status_cache, inventory_cache, demand_cache, route_cache, supplier_cache, blockchain_cache, _auto_funded_on_startup
     
     try:
         # Get MeTTa knowledge graph data
@@ -554,9 +557,35 @@ async def initialize_data():
         
         # Ensure wallets are loaded
         blockchain_integration.load_wallets()
+        
+        # Auto-fund wallets that have 0 or low balance (only on startup/initialization)
+        # This ensures wallets have SOL for transactions
+        # Only do this once on startup, not on every refresh
+        # DISABLED: Auto-funding can cause crashes - fund manually if needed
+        # if force_auto_fund or not _auto_funded_on_startup:
+        #     try:
+        #         blockchain_integration.auto_fund_wallets(min_balance=1.0)
+        #         _auto_funded_on_startup = True
+        #     except Exception as e:
+        #         logger.warning(f"Auto-funding wallets failed (may be normal if validator not ready): {e}")
 
         # Get REAL wallet summary with actual balances (fresh from blockchain)
-        wallet_summary = blockchain_integration.get_wallet_summary()
+        # Use cached balances if available to prevent excessive RPC calls
+        try:
+            # Only refresh balances if explicitly requested or cache is empty
+            if not blockchain_cache or 'wallets' not in blockchain_cache or force_auto_fund:
+                wallet_summary = blockchain_integration.get_wallet_summary()
+            else:
+                # Use cached wallet data to prevent crashes on refresh
+                wallet_summary = blockchain_cache['wallets']
+                logger.debug("Using cached wallet balances")
+        except Exception as e:
+            logger.warning(f"Error getting wallet summary, using cached data: {e}")
+            # Fallback to cached wallet data if available
+            if blockchain_cache and 'wallets' in blockchain_cache:
+                wallet_summary = blockchain_cache['wallets']
+            else:
+                wallet_summary = {}
         
         # Load REAL NFT files from blockchain_data/nfts/
         nft_files = []
@@ -595,40 +624,37 @@ async def initialize_data():
             except Exception as e:
                 logger.warning(f"Error reading payment file {payment_file}: {e}")
         
-        # If no real transactions yet, create initialization transactions
-        if not real_transactions:
-            # Create wallet initialization transactions
-            for i, wallet_name in enumerate(list(wallet_summary.keys())[:10]):
-                try:
-                    balance = wallet_summary[wallet_name].get('sol_balance', 0.0)
-                    real_transactions.append({
-                        "transaction_id": f"tx-init-{i:06d}",
-                        "type": "wallet_initialization",
-                        "amount": balance,
-                        "timestamp": datetime.now().isoformat(),
-                        "status": "confirmed",
-                        "from_wallet": "main_wallet",
-                        "to_wallet": wallet_name,
-                        "product_id": None,
-                        "blockchain_ready": True
-                    })
-                except:
-                    pass
+        # Don't create initialization transactions - only show real transactions
+        # If no real transactions yet, real_transactions will be empty
         
-        # Get REAL Solana network status
+        # Get REAL Solana network status (with timeout to prevent blocking)
         try:
             solana_client = blockchain_integration.client
-            slot_response = solana_client.get_slot()
-            current_slot = slot_response.value if hasattr(slot_response, 'value') else 0
+            # Use a quick health check first
+            try:
+                health = solana_client.get_health()
+                if health.value == "ok":
+                    slot_response = solana_client.get_slot()
+                    current_slot = slot_response.value if hasattr(slot_response, 'value') else 0
+                else:
+                    current_slot = blockchain_cache.get('network_status', {}).get('current_slot', 0) if blockchain_cache else 0
+            except:
+                # If health check fails, use cached slot
+                current_slot = blockchain_cache.get('network_status', {}).get('current_slot', 0) if blockchain_cache else 0
             
             # Get main wallet balance
             main_balance = 0.0
             if "main_wallet" in wallet_summary:
                 main_balance = wallet_summary["main_wallet"].get("sol_balance", 0.0)
         except Exception as e:
-            logger.warning(f"Error getting Solana network status: {e}")
-            current_slot = 0
-            main_balance = 0.0
+            logger.debug(f"Error getting Solana network status (using cached): {e}")
+            # Use cached values if available
+            if blockchain_cache and 'network_status' in blockchain_cache:
+                current_slot = blockchain_cache['network_status'].get('current_slot', 0)
+                main_balance = blockchain_cache.get('main_wallet_balance', 0.0)
+            else:
+                current_slot = 0
+                main_balance = 0.0
         
         blockchain_cache = {
             "transactions": real_transactions,
@@ -657,11 +683,71 @@ async def initialize_data():
         logger.error(f"Error initializing data: {e}")
         # Fallback to default data
         agent_status_cache = {}
-        inventory_cache = {}
-        demand_cache = {}
-        route_cache = {}
-        supplier_cache = {}
-        blockchain_cache = {}
+
+async def refresh_blockchain_data():
+    """Lightweight refresh of blockchain data without expensive operations"""
+    global blockchain_cache
+    
+    try:
+        blockchain_integration = get_blockchain_integration()
+        
+        # Only refresh if we have cached data, otherwise do full init
+        if not blockchain_cache:
+            await initialize_data()
+            return
+        
+        # Lightweight refresh - update transactions and NFT count only
+        # Don't refresh wallet balances on every request (expensive RPC calls)
+        
+        # Load REAL payment files from blockchain_data/payments/
+        payment_files = []
+        payments_dir = "blockchain_data/payments"
+        if os.path.exists(payments_dir):
+            payment_files = sorted([f for f in os.listdir(payments_dir) if f.endswith('.json')], reverse=True)
+        
+        # Read REAL transactions from payment files
+        real_transactions = []
+        for payment_file in payment_files[:20]:  # Last 20 payments
+            try:
+                with open(os.path.join(payments_dir, payment_file), 'r') as f:
+                    payment_data = json.load(f)
+                    tx_id = payment_data.get('signature') or payment_data.get('transaction_id') or payment_file.replace('.json', '').replace('payment_', 'tx-')
+                    
+                    real_transactions.append({
+                        "transaction_id": tx_id,
+                        "signature": payment_data.get('signature'),
+                        "type": payment_data.get('type', 'supply_chain_payment'),
+                        "amount": payment_data.get('amount', 0),
+                        "timestamp": payment_data.get('timestamp', datetime.now().isoformat()),
+                        "status": payment_data.get('status', 'pending'),
+                        "from_wallet": payment_data.get('from_wallet', 'unknown'),
+                        "to_wallet": payment_data.get('to_wallet', 'unknown'),
+                        "product_id": payment_data.get('product_id'),
+                        "blockchain_ready": payment_data.get('blockchain_ready', False),
+                        "confirmed_on_blockchain": payment_data.get('confirmed_on_blockchain', False)
+                    })
+            except Exception as e:
+                logger.debug(f"Error reading payment file {payment_file}: {e}")
+        
+        # Load REAL NFT files count
+        nft_files = []
+        nfts_dir = "blockchain_data/nfts"
+        if os.path.exists(nfts_dir):
+            nft_files = [f for f in os.listdir(nfts_dir) if f.endswith('.json')]
+        
+        # Update cache with new transaction and NFT data
+        # Keep existing wallet data (balances are expensive to refresh)
+        blockchain_cache.update({
+            "transactions": real_transactions,
+            "total_nfts": len(nft_files),
+            "total_transactions": len(real_transactions),
+            "nfts_created": len(nft_files),
+            "payments_processed": len(payment_files),
+        })
+        
+    except Exception as e:
+        logger.debug(f"Error refreshing blockchain data (using cached): {e}")
+        # Don't crash, just use existing cache - it will be returned as-is
 
 # API Endpoints
 
@@ -731,15 +817,64 @@ async def get_suppliers():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/blockchain", response_model=Dict[str, Any])
-async def get_blockchain_data():
+async def get_blockchain_data(refresh_balances: bool = False):
     """Get blockchain transaction data"""
     try:
-        # Refresh blockchain data to get latest balances
-        await initialize_data()
+        # Lightweight refresh - don't auto-fund on every request
+        # Only refresh wallet balances and transactions, not full initialization
+        if refresh_balances:
+            # Force balance refresh if requested
+            await initialize_data()
+        else:
+            await refresh_blockchain_data()
         return blockchain_cache
     except Exception as e:
         logger.error(f"Error getting blockchain data: {e}")
+        # Return cached data if available instead of crashing
+        if blockchain_cache:
+            return blockchain_cache
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/blockchain/refresh-balances")
+async def refresh_wallet_balances():
+    """Manually refresh wallet balances from blockchain"""
+    try:
+        blockchain_integration = get_blockchain_integration()
+        
+        # Get fresh wallet balances with timeout protection
+        try:
+            wallet_summary = blockchain_integration.get_wallet_summary()
+        except Exception as balance_error:
+            logger.warning(f"Error getting balances: {balance_error}")
+            return {
+                "success": False,
+                "message": "Could not fetch balances from blockchain",
+                "error": str(balance_error)
+            }
+        
+        # Update cache
+        global blockchain_cache
+        if blockchain_cache:
+            blockchain_cache["wallets"] = wallet_summary
+            blockchain_cache["total_wallets"] = len(wallet_summary)
+            
+            # Update main wallet balance
+            if "main_wallet" in wallet_summary:
+                blockchain_cache["main_wallet_balance"] = wallet_summary["main_wallet"].get("sol_balance", 0.0)
+        
+        logger.info("✅ Wallet balances refreshed")
+        return {
+            "success": True,
+            "message": "Wallet balances refreshed",
+            "total_wallets": len(wallet_summary)
+        }
+    except Exception as e:
+        logger.error(f"Error refreshing balances: {e}")
+        return {
+            "success": False,
+            "message": "Failed to refresh balances",
+            "error": str(e)
+        }
 
 # ==================== INTERACTIVE BLOCKCHAIN ENDPOINTS ====================
 
@@ -1054,10 +1189,22 @@ async def get_nfts_by_owner(wallet_name: str):
             "owner": wallet_name
         }
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Return empty list instead of error for non-existent wallets
+        return {
+            "success": True,
+            "nfts": [],
+            "count": 0,
+            "owner": wallet_name
+        }
     except Exception as e:
-        logger.error(f"Error getting NFTs by owner: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.debug(f"Error getting NFTs by owner {wallet_name}: {e}")
+        # Return empty list instead of crashing
+        return {
+            "success": True,
+            "nfts": [],
+            "count": 0,
+            "owner": wallet_name
+        }
 
 @app.get("/api/metrics", response_model=SystemMetrics)
 async def get_system_metrics():
