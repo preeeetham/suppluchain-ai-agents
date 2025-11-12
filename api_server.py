@@ -654,13 +654,14 @@ async def initialize_data(force_auto_fund=False):
                 logger.info("💡 You can manually fund wallets using: python3 fund_wallets.py")
 
         # Get REAL wallet summary with actual balances (fresh from blockchain)
-        # Use cached balances if available to prevent excessive RPC calls
+        # Always refresh balances if force_auto_fund is True (after transfers)
         try:
-            # Only refresh balances if explicitly requested or cache is empty
+            # Refresh balances if explicitly requested, cache is empty, or after auto-funding
             if not blockchain_cache or 'wallets' not in blockchain_cache or force_auto_fund:
                 wallet_summary = blockchain_integration.get_wallet_summary()
+                logger.debug("Refreshed wallet balances from blockchain")
             else:
-                # Use cached wallet data to prevent crashes on refresh
+                # Use cached wallet data to prevent excessive RPC calls
                 wallet_summary = blockchain_cache['wallets']
                 logger.debug("Using cached wallet balances")
         except Exception as e:
@@ -1002,7 +1003,7 @@ async def transfer_sol(request: TransferRequest):
         
         # Wait for transaction to be confirmed on blockchain
         # The transfer_sol function already waits for confirmation
-        await asyncio.sleep(0.5)  # Small additional delay for balance propagation
+        await asyncio.sleep(1.0)  # Additional delay for balance propagation on test validator
         
         # Force refresh wallet balances from blockchain (fresh query, no cache)
         blockchain_integration = get_blockchain_integration()
@@ -1013,8 +1014,25 @@ async def transfer_sol(request: TransferRequest):
         
         logger.info(f"Updated balances - {request.from_wallet}: {from_balance} SOL, {request.to_wallet}: {to_balance} SOL")
         
-        # Refresh blockchain cache with updated balances
-        await initialize_data()
+        # Force refresh wallet summary to get ALL fresh balances
+        wallet_summary = blockchain_integration.get_wallet_summary()
+        
+        # Update blockchain cache with fresh wallet balances
+        global blockchain_cache
+        if blockchain_cache:
+            blockchain_cache["wallets"] = wallet_summary
+            blockchain_cache["total_wallets"] = len(wallet_summary)
+            
+            # Update main wallet balance if it was involved
+            if request.from_wallet == "main_wallet":
+                blockchain_cache["main_wallet_balance"] = from_balance
+            elif request.to_wallet == "main_wallet":
+                blockchain_cache["main_wallet_balance"] = to_balance
+            elif "main_wallet" in wallet_summary:
+                blockchain_cache["main_wallet_balance"] = wallet_summary["main_wallet"].get("sol_balance", 0.0)
+        
+        # Refresh transactions list
+        await refresh_blockchain_data()
         
         # Broadcast update to WebSocket clients with fresh data
         await manager.broadcast(json.dumps({

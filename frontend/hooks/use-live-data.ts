@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { apiClient, wsClient, AgentStatus, SystemMetrics, InventoryItem, DemandForecast, RouteOptimization, SupplierInfo, BlockchainTransaction, BlockchainData, Activity, Alert } from "@/lib/api"
 
 interface LiveDataOptions {
@@ -415,10 +415,13 @@ export function useBlockchain() {
   const [blockchain, setBlockchain] = useState<BlockchainData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const lastFetchTimeRef = useRef<number>(Date.now())
 
     const fetchBlockchain = async (refreshBalances: boolean = false) => {
       try {
         setLoading(true)
+        // Update last fetch time to prevent WebSocket from overwriting fresh data
+        lastFetchTimeRef.current = Date.now()
         const data = await apiClient.getBlockchainData(refreshBalances)
         setBlockchain(data)
       setError(null)
@@ -433,16 +436,22 @@ export function useBlockchain() {
       }
     }
 
-  useEffect(() => {
+    useEffect(() => {
     // Initial load with balance refresh to ensure accurate data
     fetchBlockchain(true)
     
     // Don't connect WebSocket multiple times - causes crashes
     // WebSocket is managed globally, only subscribe to updates
+    // But don't overwrite fresh data with potentially stale WebSocket data
     const unsubscribe = wsClient.subscribe('data_update', (data) => {
       if (data.blockchain) {
-        setBlockchain(data.blockchain)
-        setError(null)
+        // Only update from WebSocket if we haven't recently fetched manually
+        // This prevents stale WebSocket data from overwriting fresh balance updates
+        const timeSinceLastFetch = Date.now() - lastFetchTimeRef.current
+        if (timeSinceLastFetch > 2000) { // Only use WebSocket data if > 2 seconds since manual fetch
+          setBlockchain(data.blockchain)
+          setError(null)
+        }
       }
     })
 

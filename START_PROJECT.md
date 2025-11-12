@@ -15,10 +15,37 @@ Complete guide for starting the project with no confusion.
 
 ## 🎯 Quick Start (Recommended Method)
 
+**⚠️ IMPORTANT: Follow this exact order to avoid errors!**
+
+### Pre-Startup: Clean Up Previous Sessions
+
+**Before starting, always clean up any leftover processes:**
+
+```bash
+cd /Users/preet/Developer/supplychain-ai-agents
+
+# Stop all processes
+pkill -f "solana-test-validator" 2>/dev/null
+pkill -f "api_server" 2>/dev/null
+pkill -f "agent.py" 2>/dev/null
+pkill -f "next dev" 2>/dev/null
+
+# Kill processes on ports (if pkill didn't work)
+lsof -ti:8000 | xargs kill -9 2>/dev/null
+lsof -ti:3000 | xargs kill -9 2>/dev/null
+lsof -ti:8899 | xargs kill -9 2>/dev/null
+
+# Clean ledger data (prevents validator crashes)
+rm -rf test-ledger
+
+echo "✅ Cleanup complete"
+```
+
 ### Step 1: Start Solana Validator (Terminal 1)
 **IMPORTANT: Keep this terminal open - blockchain runs here**
 
-**Recommended Method (Clean Start):**
+**Wait for validator to be ready before proceeding to Step 2!**
+
 ```bash
 cd /Users/preet/Developer/supplychain-ai-agents
 rm -rf test-ledger
@@ -27,7 +54,7 @@ solana-test-validator --reset --limit-ledger-size 50000000
 
 **Why this method:**
 - `rm -rf test-ledger` - Cleans old ledger data (prevents memory issues)
-- `--reset` - Starts fresh blockchain state
+- `--reset` - Starts fresh blockchain state (⚠️ Wipes all balances!)
 - `--limit-ledger-size 50000000` - Limits ledger size to prevent system kills
 
 **Expected Output:**
@@ -38,16 +65,29 @@ WebSocket PubSub URL: ws://127.0.0.1:8900
 ⠁ 00:00:16 | Processed Slot: 13003 | ...
 ```
 
-**If validator gets killed:**
-- Old ledger data may be too large (macOS kills processes using too much memory)
-- Always use: `rm -rf test-ledger` before starting
-- The `--limit-ledger-size 50000000` flag helps prevent this
+**✅ Wait until you see "Processed Slot" messages before proceeding!**
+
+**Verify validator is ready:**
+```bash
+# In a new terminal, run:
+solana cluster-version --url http://localhost:8899
+# Should return: "1.18.x" or similar version
+```
 
 ### Step 2: Start Backend API (Terminal 2)
 
+**⚠️ Wait for validator to be ready (Step 1) before starting backend!**
+
 ```bash
 cd /Users/preet/Developer/supplychain-ai-agents
+
+# Activate virtual environment
 source venv/bin/activate
+
+# Verify dependencies are installed
+pip list | grep uvicorn || pip install -r requirements.txt
+
+# Start backend
 python3 api_server.py
 ```
 
@@ -55,11 +95,27 @@ python3 api_server.py
 ```
 INFO:     Uvicorn running on http://0.0.0.0:8000
 INFO:     Application startup complete
+Auto-funding wallets...
+✅ Wallets funded successfully
 ```
 
-**Verify:** Open http://localhost:8000/docs
+**✅ Wait for "Application startup complete" before proceeding!**
+
+**Verify backend is ready:**
+```bash
+# In a new terminal, run:
+curl http://localhost:8000/docs
+# Should return HTML (not error)
+```
+
+**If you see errors:**
+- "Address already in use" → See Error 1 in Common Errors section
+- "No module named uvicorn" → See Error 2 in Common Errors section
+- "Failed to connect to validator" → Make sure Step 1 is complete
 
 ### Step 3: Start AI Agents (Terminal 3)
+
+**⚠️ Wait for backend to be ready (Step 2) before starting agents!**
 
 ```bash
 cd /Users/preet/Developer/supplychain-ai-agents
@@ -72,12 +128,29 @@ python3 agents/route_optimization_agent.py > agents/route_agent.log 2>&1 &
 python3 agents/supplier_coordination_agent.py > agents/supplier_agent.log 2>&1 &
 
 echo "✅ All agents started"
+
+# Verify agents are running
+sleep 2
+ps aux | grep "agent.py" | grep -v grep | wc -l | awk '{print "✅ "$1" agents running"}'
+```
+
+**Verify agents are running:**
+```bash
+# Check agent logs for errors
+tail -n 20 agents/inventory_agent.log
 ```
 
 ### Step 4: Start Frontend (Terminal 4)
 
+**⚠️ Wait for backend to be ready (Step 2) before starting frontend!**
+
 ```bash
 cd /Users/preet/Developer/supplychain-ai-agents/frontend
+
+# Verify node_modules exists
+[ -d "node_modules" ] || npm install
+
+# Start frontend
 npm run dev
 ```
 
@@ -86,9 +159,22 @@ npm run dev
 ▲ Next.js 16.0.0
 - Local:        http://localhost:3000
 - Network:      http://192.168.x.x:3000
+✓ Ready in 2.5s
 ```
 
-**Verify:** Open http://localhost:3000
+**✅ Wait for "Ready" message before opening browser!**
+
+**Verify frontend is ready:**
+```bash
+# In a new terminal, run:
+curl http://localhost:3000
+# Should return HTML (not error)
+```
+
+**If you see "Failed to fetch" errors:**
+- Backend not running → Go back to Step 2
+- Check browser console for specific errors
+- See Error 3 in Common Errors section
 
 ---
 
@@ -101,6 +187,216 @@ curl -s http://localhost:3000 > /dev/null && echo "✅ Frontend running" || echo
 solana cluster-version --url http://localhost:8899 && echo "✅ Validator running" || echo "❌ Validator down"
 ps aux | grep "agent.py" | grep -v grep | wc -l | awk '{print "✅ "$1" agents running"}'
 ```
+
+---
+
+## 🔄 Balance Update Problem & Solution (CRITICAL!)
+
+### Problem: Wallet Balances Not Updating After SOL Transfers
+
+**Symptoms:**
+- After performing a SOL transfer via frontend, wallet balances remain unchanged
+- Frontend shows old balances even though transaction is confirmed
+- WebSocket updates may show stale data overwriting fresh balance queries
+
+**Root Causes:**
+1. **Test Validator Delay**: Solana test validator needs time to propagate balance changes
+2. **Cache Staleness**: Backend cache not refreshed after transfers
+3. **WebSocket Race Condition**: WebSocket updates overwriting fresh manual balance fetches
+
+### Solution Implemented
+
+#### Backend Fix (`api_server.py` - `/api/blockchain/transfer` endpoint):
+
+```python
+# After transfer completes:
+1. Wait 1.0 second for test validator to propagate balance
+2. Force refresh wallet balances directly from blockchain (bypass cache)
+3. Update backend cache with fresh balances
+4. Refresh transaction list
+5. Broadcast updated data via WebSocket
+```
+
+**Key Code Changes:**
+- Added `await asyncio.sleep(1.0)` after transfer for balance propagation
+- Force refresh: `blockchain_integration.get_wallet_summary()` (fresh query, no cache)
+- Update cache: `blockchain_cache["wallets"] = wallet_summary`
+- Broadcast fresh data via WebSocket
+
+#### Frontend Fix (`frontend/app/blockchain/page.tsx` - TransferSOLModal):
+
+```typescript
+onSuccess={async () => {
+  // Wait 1.5s for transaction confirmation
+  await new Promise(resolve => setTimeout(resolve, 1500))
+  // Trigger backend balance refresh
+  await apiClient.refreshWalletBalances()
+  // Fetch fresh data with balance refresh enabled
+  await refetchWithBalances?.()
+  // Final refresh after 2s for confirmation
+  setTimeout(() => {
+    refetchWithBalances?.()
+  }, 2000)
+}}
+```
+
+#### Frontend Hook Fix (`frontend/hooks/use-live-data.ts` - useBlockchain):
+
+**Problem:** WebSocket updates were overwriting fresh manual balance fetches
+
+**Solution:** Implemented time-based WebSocket update filtering
+
+```typescript
+const lastFetchTimeRef = useRef<number>(Date.now())
+
+// On manual fetch:
+lastFetchTimeRef.current = Date.now()
+
+// On WebSocket update:
+const timeSinceLastFetch = Date.now() - lastFetchTimeRef.current
+if (timeSinceLastFetch > 2000) { // Only use WebSocket if > 2s since manual fetch
+  setBlockchain(data.blockchain)
+}
+```
+
+**Why This Works:**
+- Prevents stale WebSocket data from overwriting fresh manual fetches
+- Allows WebSocket updates for real-time updates when not manually refreshing
+- 2-second window ensures manual refresh takes priority
+
+### How to Verify Balance Updates Work:
+
+1. **Check Initial Balances:**
+   ```bash
+   curl http://localhost:8000/api/blockchain | python3 -m json.tool | grep -A 2 "main_wallet"
+   ```
+
+2. **Perform Transfer via Frontend:**
+   - Go to http://localhost:3000/blockchain
+   - Click "Transfer SOL"
+   - Transfer 5 SOL from `main_wallet` to `warehouse_001`
+   - Click "Transfer"
+
+3. **Verify Balance Update:**
+   - ✅ Frontend should update within 2-3 seconds
+   - ✅ Both wallets should show updated balances
+   - ✅ Transaction should appear in history
+   - ✅ No need to manually refresh page
+
+4. **If Balances Don't Update:**
+   - Click "Refresh Balances" button on blockchain page
+   - Check backend logs: `tail -f api_server.log`
+   - Verify validator is running: `solana cluster-version --url http://localhost:8899`
+
+### Manual Balance Refresh:
+
+If balances still don't update automatically:
+
+```bash
+# Via API
+curl -X POST http://localhost:8000/api/blockchain/refresh-balances
+
+# Via Frontend
+# Click "Refresh Balances" button on http://localhost:3000/blockchain
+```
+
+---
+
+## 🚨 Common Startup Errors & Fixes
+
+### Error 1: "Address already in use" (Port 8000 or 3000)
+
+**Problem:** Previous process still running on port
+
+**Fix:**
+```bash
+# Kill process on port 8000 (Backend)
+lsof -ti:8000 | xargs kill -9
+
+# Kill process on port 3000 (Frontend)
+lsof -ti:3000 | xargs kill -9
+
+# Then restart the service
+```
+
+### Error 2: "No module named uvicorn"
+
+**Problem:** Virtual environment not activated or dependencies not installed
+
+**Fix:**
+```bash
+cd /Users/preet/Developer/supplychain-ai-agents
+source venv/bin/activate
+pip install -r requirements.txt
+python3 api_server.py
+```
+
+### Error 3: "Failed to fetch" (Frontend can't connect to Backend)
+
+**Problem:** Backend not running or wrong port
+
+**Fix:**
+```bash
+# Check if backend is running
+curl http://localhost:8000/docs
+
+# If not running, start it:
+cd /Users/preet/Developer/supplychain-ai-agents
+source venv/bin/activate
+python3 api_server.py
+```
+
+### Error 4: Wallets Showing 0 Balance
+
+**Problem:** Validator was reset (wipes all balances) or auto-funding didn't run
+
+**Fix:**
+```bash
+# Check if validator is running
+solana cluster-version --url http://localhost:8899
+
+# If validator is running, restart backend (auto-funding runs on startup)
+# Or manually fund wallets:
+cd /Users/preet/Developer/supplychain-ai-agents
+source venv/bin/activate
+python3 << 'EOF'
+from solana_blockchain_integration import SolanaBlockchainIntegration
+blockchain = SolanaBlockchainIntegration()
+blockchain.auto_fund_wallets(
+    min_balance=1.0,
+    funding_amounts={
+        "main_wallet": 100.0,
+        "warehouse_001": 20.0,
+        "warehouse_002": 20.0,
+        "warehouse_003": 20.0,
+        "supplier_001": 20.0,
+        "supplier_002": 20.0,
+    }
+)
+print("✅ Wallets funded!")
+EOF
+```
+
+### Error 5: Validator Gets Killed by macOS
+
+**Problem:** Ledger data too large, macOS kills process
+
+**Fix:**
+```bash
+# Always clean ledger before starting
+cd /Users/preet/Developer/supplychain-ai-agents
+rm -rf test-ledger
+solana-test-validator --reset --limit-ledger-size 50000000
+```
+
+### Error 6: Backend Crashes on Page Refresh
+
+**Problem:** WebSocket connection issues or excessive refresh requests
+
+**Fix:**
+- This was fixed in the codebase
+- If still happening, check backend logs: `tail -f api_server.log`
+- Restart backend if needed
 
 ---
 
@@ -487,42 +783,84 @@ supplychain-ai-agents/
 
 ## 📞 Common Commands
 
-### Start Everything:
+### Start Everything (Follow Order!):
 ```bash
-# Terminal 1 - Validator (MUST START FIRST)
+# STEP 0: Clean up first
+cd /Users/preet/Developer/supplychain-ai-agents
+pkill -f "solana-test-validator" 2>/dev/null
+pkill -f "api_server" 2>/dev/null
+pkill -f "agent.py" 2>/dev/null
+pkill -f "next dev" 2>/dev/null
+lsof -ti:8000 | xargs kill -9 2>/dev/null
+lsof -ti:3000 | xargs kill -9 2>/dev/null
+lsof -ti:8899 | xargs kill -9 2>/dev/null
+rm -rf test-ledger
+
+# STEP 1: Terminal 1 - Validator (MUST START FIRST, WAIT FOR READY!)
 cd /Users/preet/Developer/supplychain-ai-agents
 rm -rf test-ledger
 solana-test-validator --reset --limit-ledger-size 50000000
+# ⚠️ Wait until you see "Processed Slot" messages!
 
-# Terminal 2 - Backend
+# STEP 2: Terminal 2 - Backend (WAIT FOR VALIDATOR TO BE READY!)
 cd /Users/preet/Developer/supplychain-ai-agents
-source venv/bin/activate && python3 api_server.py
+source venv/bin/activate
+pip list | grep uvicorn || pip install -r requirements.txt
+python3 api_server.py
+# ⚠️ Wait for "Application startup complete"!
 
-# Terminal 3 - Agents
+# STEP 3: Terminal 3 - Agents (WAIT FOR BACKEND TO BE READY!)
 cd /Users/preet/Developer/supplychain-ai-agents
-source venv/bin/activate && \
+source venv/bin/activate
 python3 agents/inventory_agent.py > agents/inventory_agent.log 2>&1 & \
 python3 agents/demand_forecasting_agent.py > agents/demand_agent.log 2>&1 & \
 python3 agents/route_optimization_agent.py > agents/route_agent.log 2>&1 & \
 python3 agents/supplier_coordination_agent.py > agents/supplier_agent.log 2>&1 &
+echo "✅ All agents started"
 
-# Terminal 4 - Frontend
-cd /Users/preet/Developer/supplychain-ai-agents/frontend && npm run dev
+# STEP 4: Terminal 4 - Frontend (WAIT FOR BACKEND TO BE READY!)
+cd /Users/preet/Developer/supplychain-ai-agents/frontend
+[ -d "node_modules" ] || npm install
+npm run dev
+# ⚠️ Wait for "Ready" message!
 ```
 
 ### Stop Everything:
 ```bash
+cd /Users/preet/Developer/supplychain-ai-agents
+
+# Stop all processes
 pkill -f "solana-test-validator"
 pkill -f "api_server"
 pkill -f "agent.py"
 pkill -f "next dev"
+
+# Kill by port (if pkill didn't work)
+lsof -ti:8000 | xargs kill -9 2>/dev/null
+lsof -ti:3000 | xargs kill -9 2>/dev/null
+lsof -ti:8899 | xargs kill -9 2>/dev/null
+
+echo "✅ All processes stopped"
 ```
 
 ### Check Status:
 ```bash
-curl -s http://localhost:8000/docs > /dev/null && echo "✅ Backend" || echo "❌ Backend"
-curl -s http://localhost:3000 > /dev/null && echo "✅ Frontend" || echo "❌ Frontend"
-solana cluster-version --url http://localhost:8899 && echo "✅ Validator" || echo "❌ Validator"
+# Quick status check
+echo "Checking services..."
+curl -s http://localhost:8000/docs > /dev/null && echo "✅ Backend running" || echo "❌ Backend down"
+curl -s http://localhost:3000 > /dev/null && echo "✅ Frontend running" || echo "❌ Frontend down"
+solana cluster-version --url http://localhost:8899 > /dev/null 2>&1 && echo "✅ Validator running" || echo "❌ Validator down"
+ps aux | grep "agent.py" | grep -v grep | wc -l | awk '{if ($1 > 0) print "✅ "$1" agents running"; else print "❌ No agents running"}'
+```
+
+### Verify Wallet Balances:
+```bash
+# Check if wallets are funded
+curl -s http://localhost:8000/api/blockchain | python3 -m json.tool | grep -A 2 "main_wallet" | grep "sol_balance"
+# Should show a balance > 0 (e.g., "sol_balance": 100.0)
+
+# If balances are 0, restart backend (auto-funding runs on startup)
+# Or manually fund (see Error 4 in Common Errors section)
 ```
 
 ---

@@ -582,16 +582,16 @@ export default function BlockchainPage() {
                   onOpenChange={setTransferModalOpen}
                   wallets={blockchain.wallets || {}}
                   onSuccess={async () => {
-                    // Refresh balances immediately
+                    // Wait a moment for transaction to confirm
+                    await new Promise(resolve => setTimeout(resolve, 1500))
+                    // Refresh balances on backend
                     await apiClient.refreshWalletBalances()
                     // Then fetch fresh data with balance refresh
+                    await refetchWithBalances?.()
+                    // Also refresh again after a bit more time for final confirmation
                     setTimeout(() => {
                       refetchWithBalances?.()
-                    }, 1000)
-                    // Also refresh again after transaction confirms
-                    setTimeout(() => {
-                      refetchWithBalances?.()
-                    }, 3000)
+                    }, 2000)
                   }}
                 />
                 <TransferNFTModal
