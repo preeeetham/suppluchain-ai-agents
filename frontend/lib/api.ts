@@ -201,6 +201,7 @@ class ApiClient {
         total_value: 0,
         low_stock_items: []
       },
+      '/approvals': [],
       '/demand': {
         forecasts: [],
         accuracy: 0,
@@ -295,8 +296,70 @@ class ApiClient {
   }
 
   // Blockchain Integration
-  async getBlockchainData(): Promise<BlockchainData> {
-    return this.request<BlockchainData>('/blockchain');
+  async getBlockchainData(refreshBalances: boolean = false): Promise<BlockchainData> {
+    const url = refreshBalances ? '/blockchain?refresh_balances=true' : '/blockchain';
+    return this.request<BlockchainData>(url);
+  }
+  
+  async refreshWalletBalances(): Promise<{ success: boolean; message: string }> {
+    return this.request('/blockchain/refresh-balances', {
+      method: 'POST'
+    });
+  }
+
+  // Approval Queue
+  async getPendingApprovals(status?: string): Promise<any[]> {
+    const url = status ? `/approvals?status=${status}` : '/approvals';
+    const data = await this.request(url);
+    // Ensure we always return an array
+    return Array.isArray(data) ? data : [];
+  }
+
+  async processApprovalAction(approvalId: string, action: 'approve' | 'reject' | 'modify', modifications?: Record<string, any>): Promise<any> {
+    return this.request(`/approvals/${approvalId}/action`, {
+      method: 'POST',
+      body: JSON.stringify({
+        approval_id: approvalId,
+        action,
+        modifications
+      })
+    });
+  }
+
+  // Manual Inventory Update
+  async manualInventoryUpdate(warehouseId: string, productId: string, quantity: number, action: 'add' | 'subtract' | 'set'): Promise<any> {
+    return this.request('/inventory/manual-update', {
+      method: 'POST',
+      body: JSON.stringify({
+        warehouse_id: warehouseId,
+        product_id: productId,
+        quantity,
+        action
+      })
+    });
+  }
+
+  // Agent Configuration
+  async getAgentConfig(): Promise<any> {
+    return this.request('/agents/config');
+  }
+
+  async updateAgentConfig(agentId: string, config: Record<string, any>): Promise<any> {
+    return this.request('/agents/config', {
+      method: 'POST',
+      body: JSON.stringify({
+        agent_id: agentId,
+        config
+      })
+    });
+  }
+
+  // Manual Agent Triggers
+  async triggerAgentAction(agentId: string, actionType: string, params?: Record<string, any>): Promise<any> {
+    return this.request(`/agents/${agentId}/trigger?action_type=${actionType}`, {
+      method: 'POST',
+      body: JSON.stringify(params || {})
+    });
   }
 
   // Interactive Blockchain Operations

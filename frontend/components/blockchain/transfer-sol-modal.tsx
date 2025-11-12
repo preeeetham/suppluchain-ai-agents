@@ -51,12 +51,13 @@ export function TransferSOLModal({ open, onOpenChange, wallets, onSuccess }: Tra
       const result = await apiClient.transferSOL(fromWallet, toWallet, amountNum)
       toast({
         title: "Success",
-        description: result.message
+        description: result.message || `Successfully transferred ${amountNum} SOL`
       })
       setFromWallet("")
       setToWallet("")
       setAmount("")
       onOpenChange(false)
+      // Call onSuccess immediately - parent will handle refresh
       onSuccess?.()
     } catch (error: any) {
       toast({

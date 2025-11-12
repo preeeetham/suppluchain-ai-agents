@@ -10,15 +10,17 @@ import { useBlockchain } from "@/hooks/use-live-data"
 import { formatDistanceToNow } from "date-fns"
 import { useState, useEffect } from "react"
 import { TransferSOLModal } from "@/components/blockchain/transfer-sol-modal"
+import { TransferNFTModal } from "@/components/blockchain/transfer-nft-modal"
 import { CreateNFTModal } from "@/components/blockchain/create-nft-modal"
 import { ProcessPaymentModal } from "@/components/blockchain/process-payment-modal"
 import { CreateWalletModal } from "@/components/blockchain/create-wallet-modal"
 import { apiClient } from "@/lib/api"
 
 export default function BlockchainPage() {
-  const { blockchain, loading, error, refetch } = useBlockchain()
+  const { blockchain, loading, error, refetch, refetchWithBalances } = useBlockchain()
   const [copiedHash, setCopiedHash] = useState<string | null>(null)
   const [transferModalOpen, setTransferModalOpen] = useState(false)
+  const [transferNFTModalOpen, setTransferNFTModalOpen] = useState(false)
   const [createNFTModalOpen, setCreateNFTModalOpen] = useState(false)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [createWalletModalOpen, setCreateWalletModalOpen] = useState(false)
@@ -137,6 +139,15 @@ export default function BlockchainPage() {
     }
   }, [blockchain, loading])
 
+  const handleRefreshBalances = async () => {
+    try {
+      await apiClient.refreshWalletBalances()
+      await refetchWithBalances()
+    } catch (error) {
+      console.error("Error refreshing balances:", error)
+    }
+  }
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -144,6 +155,17 @@ export default function BlockchainPage() {
         <Header />
         <main className="flex-1 overflow-auto pt-16 p-6">
           <div className="max-w-7xl mx-auto space-y-8">
+            {/* Refresh Button */}
+            <div className="flex justify-end">
+              <Button 
+                onClick={handleRefreshBalances}
+                variant="outline"
+                className="gap-2"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Refresh Balances
+              </Button>
+            </div>
             {/* Header */}
             <div className="flex items-center justify-between">
             <div>
@@ -160,6 +182,10 @@ export default function BlockchainPage() {
                   <Button onClick={() => setTransferModalOpen(true)} variant="outline" size="sm">
                     <Coins className="w-4 h-4 mr-2" />
                     Transfer SOL
+                  </Button>
+                  <Button onClick={() => setTransferNFTModalOpen(true)} variant="outline" size="sm">
+                    <Send className="w-4 h-4 mr-2" />
+                    Transfer NFT
                   </Button>
                   <Button onClick={() => setCreateNFTModalOpen(true)} variant="outline" size="sm">
                     <Plus className="w-4 h-4 mr-2" />
@@ -555,12 +581,54 @@ export default function BlockchainPage() {
                   open={transferModalOpen}
                   onOpenChange={setTransferModalOpen}
                   wallets={blockchain.wallets || {}}
+                  onSuccess={async () => {
+                    // Refresh balances immediately
+                    await apiClient.refreshWalletBalances()
+                    // Then fetch fresh data with balance refresh
+                    setTimeout(() => {
+                      refetchWithBalances?.()
+                    }, 1000)
+                    // Also refresh again after transaction confirms
+                    setTimeout(() => {
+                      refetchWithBalances?.()
+                    }, 3000)
+                  }}
+                />
+                <TransferNFTModal
+                  open={transferNFTModalOpen}
+                  onOpenChange={setTransferNFTModalOpen}
+                  wallets={blockchain.wallets || {}}
+                  nfts={nfts}
                   onSuccess={() => {
                     // Immediate refresh
                     refetch?.()
-                    // Also refresh after a short delay to ensure backend has updated
-                    setTimeout(() => refetch?.(), 500)
-                    setTimeout(() => refetch?.(), 1500)
+                    // Refresh NFTs after transfer
+                    setTimeout(() => {
+                      const fetchNFTs = async () => {
+                        if (!blockchain?.wallets) return
+                        const allNFTs: any[] = []
+                        const walletNames = Object.keys(blockchain.wallets).slice(0, 10)
+                        const promises = walletNames.map(async (walletName) => {
+                          try {
+                            const result = await apiClient.getNFTsByOwner(walletName)
+                            if (result.success && result.nfts) {
+                              return result.nfts
+                            }
+                            return []
+                          } catch {
+                            return []
+                          }
+                        })
+                        const results = await Promise.allSettled(promises)
+                        results.forEach((result) => {
+                          if (result.status === 'fulfilled') {
+                            allNFTs.push(...result.value)
+                          }
+                        })
+                        setNfts(allNFTs)
+                      }
+                      fetchNFTs()
+                    }, 2000)
                   }}
                 />
                 <CreateNFTModal

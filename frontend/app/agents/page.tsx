@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Settings, Play, Pause, RotateCcw, Loader2 } from "lucide-react"
 import { apiClient, AgentStatus } from "@/lib/api"
 import { useAgents } from "@/hooks/use-live-data"
+import { ApprovalQueue } from "@/components/approvals/approval-queue"
 
 interface AgentControlState {
   [key: string]: 'idle' | 'loading' | 'success' | 'error'
@@ -274,6 +275,9 @@ export default function AgentManagement() {
                 })
               )}
             </div>
+
+            {/* Approval Queue */}
+            <ApprovalQueue />
 
             {/* Agent Communication Log */}
             <Card className="bg-card border-border">

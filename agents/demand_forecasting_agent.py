@@ -9,6 +9,7 @@ import logging
 import statistics
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+import httpx
 
 from uagents import Agent, Context, Protocol
 from uagents.setup import fund_agent_if_low
@@ -31,6 +32,9 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.mock_metta_integration import get_metta_kg
+
+# Backend API URL
+BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8000")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -302,6 +306,23 @@ async def handle_acknowledgement(ctx: Context, sender: str, msg: ChatAcknowledge
     ctx.logger.info(f"Received acknowledgement from {sender} for message {msg.acknowledged_msg_id}")
 
 
+async def report_activity(activity_type: str, details: Dict):
+    """Report agent activity to backend"""
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{BACKEND_API_URL}/api/agents/report-activity",
+                json={
+                    "agent_id": "demand",
+                    "activity_type": activity_type,
+                    "details": details,
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                timeout=2.0
+            )
+    except Exception as e:
+        logger.debug(f"Could not report activity to backend: {e}")
+
 @agent.on_interval(period=60.0)  # Every minute
 async def demand_analysis_cycle(ctx: Context):
     """Periodic demand analysis and trend monitoring."""
@@ -323,6 +344,12 @@ async def demand_analysis_cycle(ctx: Context):
                 if product_id != "overall" and abs(trend) > 0.1:  # 10% change threshold
                     trend_direction = "increasing" if trend > 0 else "decreasing"
                     ctx.logger.info(f"Significant trend detected for {product_id}: {trend_direction} by {abs(trend)*100:.1f}%")
+            
+            # Report activity
+            await report_activity("demand_analysis", {
+                "market_trends": market_trends,
+                "significant_trends": {k: v for k, v in market_trends.items() if k != "overall" and abs(v) > 0.1}
+            })
         
     except Exception as e:
         ctx.logger.error(f"Error in demand analysis cycle: {e}")
@@ -380,10 +407,36 @@ async def historical_data_analysis(ctx: Context):
 agent.include(chat_proto, publish_manifest=True)
 
 
+async def register_with_backend():
+    """Register this agent with the backend API"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{BACKEND_API_URL}/api/agents/register",
+                json={
+                    "agent_id": "demand",
+                    "agent_address": str(agent.address),
+                    "agent_name": agent.name,
+                    "port": 8002,
+                    "endpoint": "http://localhost:8002/submit"
+                },
+                timeout=5.0
+            )
+            if response.status_code == 200:
+                logger.info("✅ Successfully registered with backend API")
+            else:
+                logger.warning(f"Failed to register with backend: {response.status_code}")
+    except Exception as e:
+        logger.warning(f"Could not register with backend API: {e}")
+        logger.info("Agent will continue running without backend registration")
+
 if __name__ == "__main__":
     logger.info(f"Demand Forecasting Agent starting...")
     logger.info(f"Agent address: {agent.address}")
     logger.info(f"Agent name: {agent.name}")
+    
+    # Register with backend
+    asyncio.run(register_with_backend())
     
     # Start the agent
     agent.run()

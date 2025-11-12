@@ -6,9 +6,10 @@ Monitors stock levels, tracks SKU availability, and triggers reorder events.
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import uuid4
 from typing import Dict, List, Optional
+import httpx
 
 from uagents import Agent, Context, Protocol
 from uagents.setup import fund_agent_if_low
@@ -33,6 +34,9 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.mock_metta_integration import get_metta_kg
+
+# Backend API URL
+BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8000")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -141,10 +145,47 @@ def calculate_reorder_quantity(product_id: str, current_quantity: int, reorder_p
         return reorder_point * 3  # Fallback
 
 
+async def get_agent_address(agent_id: str) -> Optional[str]:
+    """Get agent address from backend registry"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{BACKEND_API_URL}/api/agents/discover", params={"agent_id": agent_id}, timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("agent_address")
+            else:
+                logger.warning(f"Agent {agent_id} not found in registry, using fallback")
+                return AGENT_ADDRESSES.get(agent_id)
+    except Exception as e:
+        logger.warning(f"Error discovering agent {agent_id}: {e}, using fallback")
+        return AGENT_ADDRESSES.get(agent_id)
+
+async def report_activity(activity_type: str, details: Dict):
+    """Report agent activity to backend"""
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{BACKEND_API_URL}/api/agents/report-activity",
+                json={
+                    "agent_id": "inventory",
+                    "activity_type": activity_type,
+                    "details": details,
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                timeout=2.0
+            )
+    except Exception as e:
+        logger.debug(f"Could not report activity to backend: {e}")
+
 async def request_demand_forecast(ctx: Context, product_id: str) -> Optional[DemandForecast]:
     """Request demand forecast from Demand Forecasting Agent."""
     try:
-        demand_agent = AGENT_ADDRESSES["demand"]
+        # Try to get actual agent address from registry
+        demand_agent = await get_agent_address("demand")
+        
+        if not demand_agent:
+            logger.warning("Demand agent address not available, skipping request")
+            return None
         
         # Create demand forecast request
         request_data = {
@@ -158,6 +199,10 @@ async def request_demand_forecast(ctx: Context, product_id: str) -> Optional[Dem
         await ctx.send(demand_agent, message)
         
         logger.info(f"Sent demand forecast request for {product_id} to demand agent")
+        
+        # Report activity
+        await report_activity("demand_forecast_request", {"product_id": product_id})
+        
         return None  # Will receive response asynchronously
         
     except Exception as e:
@@ -165,10 +210,68 @@ async def request_demand_forecast(ctx: Context, product_id: str) -> Optional[Dem
         return None
 
 
-async def trigger_supplier_order(ctx: Context, product_id: str, quantity: int, warehouse_id: str):
-    """Trigger reorder with Supplier Coordination Agent."""
+async def create_reorder_approval(product_id: str, quantity: int, warehouse_id: str, current_quantity: int, reorder_point: int) -> bool:
+    """Create a pending approval for reorder instead of auto-executing."""
     try:
-        supplier_agent = AGENT_ADDRESSES["supplier"]
+        # Estimate cost (simplified - in real system would query supplier prices)
+        estimated_unit_cost = 25.0 + (hash(product_id) % 50)  # $25-$75 per unit
+        estimated_cost = estimated_unit_cost * quantity
+        
+        # Create approval request with unique ID (using UUID to prevent collisions)
+        approval_data = {
+            "id": f"reorder-{product_id}-{warehouse_id}-{uuid4().hex[:8]}",
+            "type": "reorder",
+            "agent_id": "inventory",
+            "title": f"Reorder Request: {product_id}",
+            "description": f"Low stock detected for {product_id} in {warehouse_id}. Current: {current_quantity}, Reorder Point: {reorder_point}",
+            "details": {
+                "product_id": product_id,
+                "warehouse_id": warehouse_id,
+                "quantity": quantity,
+                "current_quantity": current_quantity,
+                "reorder_point": reorder_point,
+                "estimated_unit_cost": estimated_unit_cost,
+                "urgency": "medium"
+            },
+            "estimated_cost": estimated_cost,
+            "created_at": datetime.utcnow().isoformat(),
+            "expires_at": (datetime.utcnow() + timedelta(hours=24)).isoformat(),
+            "status": "pending"
+        }
+        
+        # Send to backend API
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{BACKEND_API_URL}/api/approvals",
+                json=approval_data,
+                timeout=5.0
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("auto_approved"):
+                    logger.info(f"Reorder auto-approved for {product_id} (below threshold)")
+                    return True
+                else:
+                    logger.info(f"Created pending approval for reorder: {product_id}")
+                    return False
+            else:
+                logger.error(f"Failed to create approval: {response.status_code}")
+                return False
+                
+    except Exception as e:
+        logger.error(f"Error creating reorder approval: {e}")
+        return False
+
+async def trigger_supplier_order(ctx: Context, product_id: str, quantity: int, warehouse_id: str):
+    """Trigger reorder with Supplier Coordination Agent (called after approval)."""
+    try:
+        # Try to get actual agent address from registry
+        supplier_agent = await get_agent_address("supplier")
+        
+        if not supplier_agent:
+            logger.warning("Supplier agent address not available, skipping request")
+            return
         
         # Create reorder request
         reorder_request = ReorderRequest(
@@ -199,6 +302,13 @@ async def trigger_supplier_order(ctx: Context, product_id: str, quantity: int, w
         await ctx.send(supplier_agent, message)
         
         logger.info(f"Sent reorder request for {product_id} to supplier agent")
+        
+        # Report activity
+        await report_activity("reorder_request", {
+            "product_id": product_id,
+            "quantity": quantity,
+            "warehouse_id": warehouse_id
+        })
         
     except Exception as e:
         logger.error(f"Error triggering supplier order: {e}")
@@ -301,19 +411,33 @@ async def inventory_monitoring_cycle(ctx: Context):
                     product_id, current_quantity, reorder_point
                 )
                 
-                # Request demand forecast
+                # Request demand forecast (for information in approval)
                 await request_demand_forecast(ctx, product_id)
                 
-                # Trigger supplier order
-                await trigger_supplier_order(ctx, product_id, reorder_quantity, warehouse_id)
+                # Create pending approval instead of auto-executing
+                auto_approved = await create_reorder_approval(
+                    product_id, reorder_quantity, warehouse_id, current_quantity, reorder_point
+                )
+                
+                # Only trigger supplier order if auto-approved
+                if auto_approved:
+                    await trigger_supplier_order(ctx, product_id, reorder_quantity, warehouse_id)
+                    ctx.logger.info(f"Auto-approved and triggered reorder for {product_id}: {reorder_quantity} units")
+                else:
+                    ctx.logger.info(f"Created pending approval for {product_id}: {reorder_quantity} units")
                 
                 # Update MeTTa with inventory update
                 metta_kg.add_inventory_update(warehouse_id, product_id, current_quantity)
-                
-                ctx.logger.info(f"Triggered reorder for {product_id}: {reorder_quantity} units")
-        
+            
+            # Report activity
+            await report_activity("inventory_check", {
+                "low_stock_items": len(low_stock_items),
+                "items": [{"product_id": item["product_id"], "warehouse_id": item["warehouse_id"]} for item in low_stock_items]
+            })
         else:
             ctx.logger.info("All inventory levels are adequate")
+            # Report activity even when all is good
+            await report_activity("inventory_check", {"low_stock_items": 0, "status": "adequate"})
             
     except Exception as e:
         ctx.logger.error(f"Error in inventory monitoring cycle: {e}")
@@ -344,10 +468,36 @@ async def periodic_inventory_update(ctx: Context):
 agent.include(chat_proto, publish_manifest=True)
 
 
+async def register_with_backend():
+    """Register this agent with the backend API"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{BACKEND_API_URL}/api/agents/register",
+                json={
+                    "agent_id": "inventory",
+                    "agent_address": str(agent.address),
+                    "agent_name": agent.name,
+                    "port": 8001,
+                    "endpoint": "http://localhost:8001/submit"
+                },
+                timeout=5.0
+            )
+            if response.status_code == 200:
+                logger.info("✅ Successfully registered with backend API")
+            else:
+                logger.warning(f"Failed to register with backend: {response.status_code}")
+    except Exception as e:
+        logger.warning(f"Could not register with backend API: {e}")
+        logger.info("Agent will continue running without backend registration")
+
 if __name__ == "__main__":
     logger.info(f"Inventory Management Agent starting...")
     logger.info(f"Agent address: {agent.address}")
     logger.info(f"Agent name: {agent.name}")
+    
+    # Register with backend
+    asyncio.run(register_with_backend())
     
     # Start the agent
     agent.run()

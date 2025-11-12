@@ -56,6 +56,30 @@ route_cache = {}
 supplier_cache = {}
 blockchain_cache = {}
 communication_log = []  # Store real agent communication logs
+agent_registry = {}  # Store actual agent addresses for discovery: {"inventory": "agent_address_0x...", ...}
+agent_activity_log = []  # Store agent activity reports
+approval_queue = []  # Store pending actions requiring user approval
+agent_config = {  # Agent configuration settings
+    "inventory": {
+        "auto_approve_threshold": 1000.0,  # Auto-approve orders under $1000
+        "require_approval": True,
+        "monitoring_interval": 30.0
+    },
+    "supplier": {
+        "auto_approve_threshold": 5000.0,
+        "require_approval": True,
+        "monitoring_interval": 60.0
+    },
+    "route": {
+        "auto_approve_threshold": 200.0,
+        "require_approval": False,
+        "monitoring_interval": 120.0
+    },
+    "demand": {
+        "require_approval": False,
+        "monitoring_interval": 60.0
+    }
+}
 
 def calculate_uptime(start_time: datetime) -> str:
     """Calculate uptime string from start time"""
@@ -190,6 +214,33 @@ class SystemMetrics(BaseModel):
     blockchain_transactions: int
     system_health: str
 
+class PendingApproval(BaseModel):
+    id: str
+    type: str  # "reorder", "supplier_selection", "route", "large_order"
+    agent_id: str
+    title: str
+    description: str
+    details: Dict[str, Any]
+    estimated_cost: Optional[float] = None
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    status: str  # "pending", "approved", "rejected", "expired"
+
+class ApprovalAction(BaseModel):
+    approval_id: str
+    action: str  # "approve", "reject", "modify"
+    modifications: Optional[Dict[str, Any]] = None
+
+class ManualInventoryUpdate(BaseModel):
+    warehouse_id: str
+    product_id: str
+    quantity: int
+    action: str  # "add", "set", "subtract"
+
+class AgentConfigUpdate(BaseModel):
+    agent_id: str
+    config: Dict[str, Any]
+
 # WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
@@ -213,6 +264,14 @@ class ConnectionManager:
                 pass
 
 manager = ConnectionManager()
+
+async def broadcast_update(data: Dict[str, Any]):
+    """Broadcast update to all connected WebSocket clients"""
+    try:
+        message = json.dumps(data)
+        await manager.broadcast(message)
+    except Exception as e:
+        logger.error(f"Error broadcasting update: {e}")
 
 # Track if we've done initial auto-funding
 _auto_funded_on_startup = False
@@ -559,15 +618,40 @@ async def initialize_data(force_auto_fund=False):
         blockchain_integration.load_wallets()
         
         # Auto-fund wallets that have 0 or low balance (only on startup/initialization)
-        # This ensures wallets have SOL for transactions
+        # This ensures wallets have SOL for transactions after validator reset
         # Only do this once on startup, not on every refresh
-        # DISABLED: Auto-funding can cause crashes - fund manually if needed
-        # if force_auto_fund or not _auto_funded_on_startup:
-        #     try:
-        #         blockchain_integration.auto_fund_wallets(min_balance=1.0)
-        #         _auto_funded_on_startup = True
-        #     except Exception as e:
-        #         logger.warning(f"Auto-funding wallets failed (may be normal if validator not ready): {e}")
+        if force_auto_fund or not _auto_funded_on_startup:
+            try:
+                # Check if validator is accessible before attempting to fund
+                try:
+                    slot = blockchain_integration.client.get_slot()
+                    if slot is not None:
+                        # Validator is accessible, attempt auto-funding
+                        funded_count = blockchain_integration.auto_fund_wallets(
+                            min_balance=1.0,
+                            funding_amounts={
+                                "main_wallet": 100.0,
+                                "warehouse_001": 20.0,
+                                "warehouse_002": 20.0,
+                                "warehouse_003": 20.0,
+                                "supplier_001": 20.0,
+                                "supplier_002": 20.0,
+                            }
+                        )
+                        if funded_count > 0:
+                            logger.info(f"✅ Auto-funded {funded_count} wallets on startup")
+                            _auto_funded_on_startup = True
+                        else:
+                            logger.info("ℹ️  All wallets already have sufficient balance")
+                            _auto_funded_on_startup = True
+                    else:
+                        logger.warning("⚠️  Validator not accessible, skipping auto-funding")
+                except Exception as validator_check_error:
+                    logger.warning(f"⚠️  Cannot connect to validator for auto-funding: {validator_check_error}")
+                    logger.info("💡 Tip: Start validator first, then restart backend for auto-funding")
+            except Exception as e:
+                logger.warning(f"Auto-funding wallets failed: {e}")
+                logger.info("💡 You can manually fund wallets using: python3 fund_wallets.py")
 
         # Get REAL wallet summary with actual balances (fresh from blockchain)
         # Use cached balances if available to prevent excessive RPC calls
@@ -1682,6 +1766,446 @@ async def get_agent_communication_log():
     except Exception as e:
         logger.error(f"Error getting communication log: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get communication log: {e}")
+
+# --- Agent Registry & Discovery Endpoints ---
+
+class AgentRegistration(BaseModel):
+    agent_id: str  # "inventory", "demand", "route", "supplier"
+    agent_address: str  # Actual uagents address
+    agent_name: str
+    port: int
+    endpoint: str
+
+@app.post("/api/agents/register")
+async def register_agent(registration: AgentRegistration):
+    """Register an agent's address for discovery by other agents"""
+    try:
+        global agent_registry
+        
+        agent_registry[registration.agent_id] = {
+            "agent_address": registration.agent_address,
+            "agent_name": registration.agent_name,
+            "port": registration.port,
+            "endpoint": registration.endpoint,
+            "registered_at": datetime.now().isoformat()
+        }
+        
+        logger.info(f"✅ Agent registered: {registration.agent_id} ({registration.agent_name}) at {registration.agent_address}")
+        
+        # Update agent status cache if exists
+        if registration.agent_id in agent_status_cache:
+            agent_status_cache[registration.agent_id]["status"] = "active"
+            agent_status_cache[registration.agent_id]["last_activity"] = datetime.now()
+        
+        # Broadcast to connected clients
+        await manager.broadcast(json.dumps({
+            "type": "agent_registered",
+            "agent_id": registration.agent_id,
+            "agent_name": registration.agent_name
+        }))
+        
+        return {"status": "success", "message": f"Agent {registration.agent_id} registered successfully"}
+    except Exception as e:
+        logger.error(f"Error registering agent: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to register agent: {e}")
+
+@app.get("/api/agents/discover")
+async def discover_agents(agent_id: Optional[str] = None):
+    """Get registered agent addresses for discovery"""
+    try:
+        global agent_registry
+        
+        if agent_id:
+            # Return specific agent address
+            if agent_id in agent_registry:
+                return {
+                    "agent_id": agent_id,
+                    "agent_address": agent_registry[agent_id]["agent_address"],
+                    "agent_name": agent_registry[agent_id]["agent_name"],
+                    "endpoint": agent_registry[agent_id]["endpoint"]
+                }
+            else:
+                raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found in registry")
+        else:
+            # Return all registered agents
+            return {
+                "agents": {
+                    agent_id: {
+                        "agent_address": data["agent_address"],
+                        "agent_name": data["agent_name"],
+                        "endpoint": data["endpoint"],
+                        "registered_at": data["registered_at"]
+                    }
+                    for agent_id, data in agent_registry.items()
+                }
+            }
+    except Exception as e:
+        logger.error(f"Error discovering agents: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to discover agents: {e}")
+
+class AgentActivityReport(BaseModel):
+    agent_id: str
+    activity_type: str  # "task_completed", "inventory_check", "demand_forecast", etc.
+    details: Dict[str, Any]
+    timestamp: Optional[datetime] = None
+
+@app.post("/api/agents/report-activity")
+async def report_agent_activity(report: AgentActivityReport):
+    """Report agent activity to backend for tracking and frontend display"""
+    try:
+        global agent_status_cache, agent_activity_log
+        
+        # Update agent status cache
+        if report.agent_id in agent_status_cache:
+            agent_status_cache[report.agent_id]["last_activity"] = report.timestamp or datetime.now()
+            agent_status_cache[report.agent_id]["tasks_completed"] = agent_status_cache[report.agent_id].get("tasks_completed", 0) + 1
+            
+            # Recalculate efficiency
+            if "start_time" in agent_status_cache[report.agent_id]:
+                tasks_completed = agent_status_cache[report.agent_id]["tasks_completed"]
+                efficiency = calculate_efficiency(
+                    report.agent_id,
+                    tasks_completed,
+                    agent_status_cache[report.agent_id]["start_time"]
+                )
+                agent_status_cache[report.agent_id]["efficiency"] = efficiency
+        
+        # Log activity
+        activity_entry = {
+            "agent_id": report.agent_id,
+            "activity_type": report.activity_type,
+            "details": report.details,
+            "timestamp": (report.timestamp or datetime.now()).isoformat()
+        }
+        agent_activity_log.append(activity_entry)
+        
+        # Keep only last 100 activities
+        if len(agent_activity_log) > 100:
+            agent_activity_log = agent_activity_log[-100:]
+        
+        logger.info(f"📊 Activity reported: {report.agent_id} - {report.activity_type}")
+        
+        # Broadcast to connected clients
+        await manager.broadcast(json.dumps({
+            "type": "agent_activity",
+            "agent_id": report.agent_id,
+            "activity_type": report.activity_type,
+            "details": report.details,
+            "timestamp": activity_entry["timestamp"]
+        }))
+        
+        return {"status": "success", "message": "Activity reported successfully"}
+    except Exception as e:
+        logger.error(f"Error reporting agent activity: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to report activity: {e}")
+
+@app.get("/api/agents/activity-log")
+async def get_agent_activity_log(limit: int = 50):
+    """Get agent activity log"""
+    try:
+        global agent_activity_log
+        # Return last N activities, sorted by timestamp (newest first)
+        recent_activities = sorted(agent_activity_log, key=lambda x: x.get('timestamp', ''), reverse=True)[:limit]
+        return recent_activities
+    except Exception as e:
+        logger.error(f"Error getting activity log: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== APPROVAL QUEUE ENDPOINTS ====================
+
+@app.get("/api/approvals", response_model=List[PendingApproval])
+async def get_pending_approvals(status: Optional[str] = None):
+    """Get all pending approvals, optionally filtered by status"""
+    try:
+        global approval_queue
+        if status:
+            filtered = [a for a in approval_queue if a.get("status") == status]
+            return filtered
+        return approval_queue
+    except Exception as e:
+        logger.error(f"Error getting approvals: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/approvals")
+async def create_pending_approval(approval: PendingApproval):
+    """Create a new pending approval (called by agents)"""
+    try:
+        global approval_queue
+        
+        # Check if approval is needed based on agent config
+        agent_cfg = agent_config.get(approval.agent_id, {})
+        require_approval = agent_cfg.get("require_approval", True)
+        auto_threshold = agent_cfg.get("auto_approve_threshold", float('inf'))
+        
+        # Auto-approve if below threshold and approval not required
+        if not require_approval or (approval.estimated_cost and approval.estimated_cost < auto_threshold):
+            return {
+                "success": True,
+                "auto_approved": True,
+                "approval_id": approval.id,
+                "message": "Action auto-approved based on configuration"
+            }
+        
+        # Add to approval queue
+        approval_dict = approval.dict()
+        approval_dict["created_at"] = approval.created_at.isoformat()
+        if approval.expires_at:
+            approval_dict["expires_at"] = approval.expires_at.isoformat()
+        
+        approval_queue.append(approval_dict)
+        
+        # Broadcast to WebSocket clients
+        await broadcast_update({
+            "type": "approval_created",
+            "approval": approval_dict
+        })
+        
+        logger.info(f"Created pending approval: {approval.id} ({approval.type})")
+        return {
+            "success": True,
+            "approval_id": approval.id,
+            "message": "Approval request created"
+        }
+    except Exception as e:
+        logger.error(f"Error creating approval: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/approvals/{approval_id}/action")
+async def process_approval_action(approval_id: str, action: ApprovalAction):
+    """Process an approval action (approve, reject, modify)"""
+    try:
+        global approval_queue
+        
+        # Find the approval
+        approval_index = None
+        for i, app in enumerate(approval_queue):
+            if app.get("id") == approval_id:
+                approval_index = i
+                break
+        
+        if approval_index is None:
+            raise HTTPException(status_code=404, detail="Approval not found")
+        
+        approval = approval_queue[approval_index]
+        
+        if approval.get("status") != "pending":
+            raise HTTPException(status_code=400, detail=f"Approval already {approval.get('status')}")
+        
+        # Update approval status
+        if action.action == "approve":
+            approval["status"] = "approved"
+            approval["approved_at"] = datetime.now().isoformat()
+            approval["approved_by"] = "user"  # In real system, get from auth
+            
+            # If modifications provided, apply them
+            if action.modifications:
+                approval["details"].update(action.modifications)
+            
+            # Broadcast approval to trigger agent action
+            await broadcast_update({
+                "type": "approval_approved",
+                "approval_id": approval_id,
+                "approval": approval
+            })
+            
+        elif action.action == "reject":
+            approval["status"] = "rejected"
+            approval["rejected_at"] = datetime.now().isoformat()
+            approval["rejected_by"] = "user"
+            
+            await broadcast_update({
+                "type": "approval_rejected",
+                "approval_id": approval_id,
+                "approval": approval
+            })
+        
+        elif action.action == "modify":
+            if not action.modifications:
+                raise HTTPException(status_code=400, detail="Modifications required for modify action")
+            
+            # Update approval with modifications
+            approval["details"].update(action.modifications)
+            approval["modified_at"] = datetime.now().isoformat()
+            approval["modified_by"] = "user"
+            
+            # Recalculate estimated cost if quantity changed
+            if "quantity" in action.modifications:
+                # This would trigger a recalculation in real system
+                pass
+            
+            await broadcast_update({
+                "type": "approval_modified",
+                "approval_id": approval_id,
+                "approval": approval
+            })
+        
+        logger.info(f"Processed approval {approval_id}: {action.action}")
+        return {
+            "success": True,
+            "approval_id": approval_id,
+            "action": action.action,
+            "approval": approval
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing approval: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/approvals/{approval_id}")
+async def delete_approval(approval_id: str):
+    """Delete an approval from the queue"""
+    try:
+        global approval_queue
+        approval_queue = [a for a in approval_queue if a.get("id") != approval_id]
+        return {"success": True, "message": "Approval deleted"}
+    except Exception as e:
+        logger.error(f"Error deleting approval: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== MANUAL INVENTORY UPDATE ENDPOINTS ====================
+
+@app.post("/api/inventory/manual-update")
+async def manual_inventory_update(update: ManualInventoryUpdate):
+    """Manually update inventory levels"""
+    try:
+        global inventory_cache
+        metta_kg = get_metta_kg()
+        
+        # Get current inventory
+        current_data = metta_kg.query_inventory(
+            warehouse_id=update.warehouse_id,
+            product_id=update.product_id
+        )
+        
+        current_quantity = 0
+        if current_data and len(current_data) > 0:
+            current_quantity = int(current_data[0].get('values', [0, 0, 0])[2])
+        
+        # Calculate new quantity
+        if update.action == "add":
+            new_quantity = current_quantity + update.quantity
+        elif update.action == "subtract":
+            new_quantity = max(0, current_quantity - update.quantity)
+        elif update.action == "set":
+            new_quantity = update.quantity
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action. Use 'add', 'subtract', or 'set'")
+        
+        # Update in MeTTa
+        metta_kg.add_inventory_update(update.warehouse_id, update.product_id, new_quantity)
+        
+        # Refresh inventory cache
+        await initialize_data()
+        
+        # Broadcast update
+        await broadcast_update({
+            "type": "inventory_updated",
+            "warehouse_id": update.warehouse_id,
+            "product_id": update.product_id,
+            "old_quantity": current_quantity,
+            "new_quantity": new_quantity,
+            "action": update.action
+        })
+        
+        logger.info(f"Manual inventory update: {update.warehouse_id}/{update.product_id} {update.action} {update.quantity}")
+        return {
+            "success": True,
+            "warehouse_id": update.warehouse_id,
+            "product_id": update.product_id,
+            "old_quantity": current_quantity,
+            "new_quantity": new_quantity,
+            "action": update.action
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating inventory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== AGENT CONFIGURATION ENDPOINTS ====================
+
+@app.get("/api/agents/config")
+async def get_agent_config():
+    """Get agent configuration settings"""
+    try:
+        global agent_config
+        return {
+            "success": True,
+            "config": agent_config
+        }
+    except Exception as e:
+        logger.error(f"Error getting agent config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/agents/config")
+async def update_agent_config(config_update: AgentConfigUpdate):
+    """Update agent configuration"""
+    try:
+        global agent_config
+        
+        if config_update.agent_id not in agent_config:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        # Update configuration
+        agent_config[config_update.agent_id].update(config_update.config)
+        
+        # Broadcast update
+        await broadcast_update({
+            "type": "agent_config_updated",
+            "agent_id": config_update.agent_id,
+            "config": agent_config[config_update.agent_id]
+        })
+        
+        logger.info(f"Updated config for agent {config_update.agent_id}")
+        return {
+            "success": True,
+            "agent_id": config_update.agent_id,
+            "config": agent_config[config_update.agent_id]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating agent config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== MANUAL TRIGGER ENDPOINTS ====================
+
+@app.post("/api/agents/{agent_id}/trigger")
+async def trigger_agent_action(agent_id: str, action_type: str, params: Optional[Dict[str, Any]] = None):
+    """Manually trigger an agent action"""
+    try:
+        if agent_id not in agent_status_cache:
+            raise HTTPException(status_code=404, detail="Agent not found")
+        
+        # Store trigger request for agent to pick up
+        trigger_data = {
+            "agent_id": agent_id,
+            "action_type": action_type,
+            "params": params or {},
+            "triggered_at": datetime.now().isoformat(),
+            "triggered_by": "user"
+        }
+        
+        # Broadcast trigger to agent (in real system, would send message to agent)
+        await broadcast_update({
+            "type": "agent_trigger",
+            "trigger": trigger_data
+        })
+        
+        logger.info(f"Triggered {action_type} for agent {agent_id}")
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "action_type": action_type,
+            "message": f"Triggered {action_type} for {agent_id}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error triggering agent action: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # --- Analytics Endpoints ---
 

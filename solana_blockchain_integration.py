@@ -127,8 +127,9 @@ class SolanaBlockchainIntegration:
         funded_count = 0
         # First, check if validator is accessible
         try:
-            health = self.client.get_health()
-            if not health.value:
+            # Try to get slot to verify connection (more compatible than get_health)
+            slot = self.client.get_slot()
+            if slot is None:
                 logger.warning("⚠️  Solana validator not accessible, skipping auto-funding")
                 return 0
         except Exception as e:
@@ -146,7 +147,14 @@ class SolanaBlockchainIntegration:
                     result = self.fund_wallet(wallet_name, amount)
                     if result:
                         funded_count += 1
-                        logger.info(f"✅ Funded {wallet_name} with {amount} SOL")
+                        # Wait a bit longer for airdrop to confirm on test validator
+                        time.sleep(1.5)
+                        # Verify the funding worked
+                        new_balance = self.get_wallet_balance(wallet_name)
+                        if new_balance >= min_balance:
+                            logger.info(f"✅ Funded {wallet_name} with {amount} SOL (new balance: {new_balance:.4f} SOL)")
+                        else:
+                            logger.warning(f"⚠️  {wallet_name} funded but balance still low: {new_balance:.4f} SOL")
                     else:
                         logger.warning(f"⚠️  Failed to fund {wallet_name}")
                     time.sleep(0.5)  # Small delay between airdrops

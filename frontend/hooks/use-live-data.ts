@@ -132,25 +132,48 @@ export function useSystemMetrics() {
     
     const unsubscribe = wsClient.subscribe('data_update', (data) => {
       console.log('🔄 WebSocket metrics data received:', data)
-      // System metrics would be calculated from the agents data
-      if (data.agents) {
-        const agentsArray = Object.values(data.agents) as AgentStatus[]
-        const activeAgents = agentsArray.filter(agent => agent.status === 'active').length
-        const totalTasks = agentsArray.reduce((sum, agent) => sum + agent.tasks_completed, 0)
-        const avgEfficiency = agentsArray.reduce((sum, agent) => sum + agent.efficiency, 0) / agentsArray.length
+      
+      // Update metrics preserving existing values and using new data when available
+      setMetrics((prevMetrics) => {
+        const agentsArray = data.agents ? Object.values(data.agents) as AgentStatus[] : []
+        const activeAgents = agentsArray.length > 0 
+          ? agentsArray.filter(agent => agent.status === 'active').length 
+          : (prevMetrics?.active_agents || 0)
+        const totalTasks = agentsArray.length > 0
+          ? agentsArray.reduce((sum, agent) => sum + agent.tasks_completed, 0)
+          : 0
+        const avgEfficiency = agentsArray.length > 0
+          ? agentsArray.reduce((sum, agent) => sum + agent.efficiency, 0) / agentsArray.length
+          : (prevMetrics?.system_health === 'excellent' ? 85 : 70)
+        
+        // Get inventory value from inventory data or preserve existing
+        const total_inventory_value = data.inventory?.total_value 
+          ?? prevMetrics?.total_inventory_value 
+          ?? 0
+        
+        // Get other metrics from data or preserve existing
+        const pending_orders = data.suppliers?.active_orders 
+          ?? prevMetrics?.pending_orders 
+          ?? 0
+        const active_routes = data.routes?.active_routes?.length 
+          ?? prevMetrics?.active_routes 
+          ?? 0
+        const blockchain_transactions = data.blockchain?.transactions?.length 
+          ?? prevMetrics?.blockchain_transactions 
+          ?? 0
         
         const systemMetrics: SystemMetrics = {
           active_agents: activeAgents,
-          total_inventory_value: 0, // This would come from inventory data
-          pending_orders: 0, // This would come from orders data
-          active_routes: 0, // This would come from routes data
-          blockchain_transactions: 0, // This would come from blockchain data
+          total_inventory_value: total_inventory_value,
+          pending_orders: pending_orders,
+          active_routes: active_routes,
+          blockchain_transactions: blockchain_transactions,
           system_health: avgEfficiency > 80 ? 'excellent' : avgEfficiency > 60 ? 'good' : 'warning'
         }
         
         console.log('📊 Updating system metrics from WebSocket:', systemMetrics)
-        setMetrics(systemMetrics)
-      }
+        return systemMetrics
+      })
     })
 
     return () => {
@@ -393,10 +416,10 @@ export function useBlockchain() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
-    const fetchBlockchain = async () => {
+    const fetchBlockchain = async (refreshBalances: boolean = false) => {
       try {
         setLoading(true)
-        const data = await apiClient.getBlockchainData()
+        const data = await apiClient.getBlockchainData(refreshBalances)
         setBlockchain(data)
       setError(null)
       } catch (err) {
@@ -411,7 +434,8 @@ export function useBlockchain() {
     }
 
   useEffect(() => {
-    fetchBlockchain()
+    // Initial load with balance refresh to ensure accurate data
+    fetchBlockchain(true)
     
     // Don't connect WebSocket multiple times - causes crashes
     // WebSocket is managed globally, only subscribe to updates
@@ -428,7 +452,7 @@ export function useBlockchain() {
     }
   }, [])
 
-  return { blockchain, loading, error, refetch: fetchBlockchain }
+  return { blockchain, loading, error, refetch: () => fetchBlockchain(false), refetchWithBalances: () => fetchBlockchain(true) }
 }
 
 export function useActivities() {
